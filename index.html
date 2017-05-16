@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title></title>
+		<style>
+			*{
+				padding: 0px;
+				margin: 0px;
+			}
+			html,body{
+				height: 100%;
+				width: 100%;
+			}
+			body div{
+				width: 500px;
+				height: 400px;
+				line-height: 400px;
+				text-align: center;
+				background-color: aquamarine;
+				border-radius: 10px;
+				position: relative;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%,-50%);
+				font-size: 18px;
+			}
+		</style>
+	</head>
+	<body>
+		<div>
+			将flv文件拖入此处
+		</div>
+		<script type="text/javascript" src="bound.js" ></script>
+		<script>
+			var dropbox=document.querySelector('body div');
+            dropbox.addEventListener("dragover", function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+            }, false);
+            dropbox.addEventListener("drop", function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var reader = new FileReader();
+                reader.addEventListener("load", processflv, false); 
+				reader.readAsArrayBuffer(e.dataTransfer.files[0]);
+            }, false);
+			function processflv(e){
+				var buffer=e.target.result;
+				var uint8=new Uint8Array(buffer);
+				console.log(uint8);   //将拖拽入的flv视频转成了2进制数组
+				flvParse.setFlv(uint8);//仍入转换器
+			}
+			
+		</script>
+	</body>
+</html>

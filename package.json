@@ -1,0 +1,24 @@
+{
+  "name": "flv2fmp4",
+  "version": "1.0.0",
+  "description": "博客的mp4软编码系列文章的demo",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://332065255@github.com/332065255/flv2fmp4.git"
+  },
+  "author": "g11",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/332065255/flv2fmp4/issues"
+  },
+  "homepage": "https://github.com/332065255/flv2fmp4#readme",
+  "dependencies": {
+    "babel-core": "^6.24.1",
+    "babel-loader": "^7.0.0",
+    "babel-preset-es2015": "^6.24.1"
+  }
+}
