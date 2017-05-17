@@ -83,9 +83,15 @@ export default class flvDemux {
     static parseMetadata(arr) {
         let name = flvDemux.parseScript(arr, 0);
         let value = flvDemux.parseScript(arr, name.size, arr.length - name.size);
-
-        console.log(value);
+        // return {}
+        let data = {};
+        data[name.data] = value.data;
+        return data;
     }
+
+
+
+
     static parseScript(arr, offset, dataSize) {
         let dataOffset = offset;
         let object = {};
