@@ -52,6 +52,19 @@
 				flvParse.setFlv(uint8);//仍入转换器
 			}
 			
+			
+			function A(x){
+				this.x=x;
+			}
+			A.prototype.x=1;
+			function B(x){
+				this.x=x;
+			}
+			B.prototype=new A();
+			var a=new A(2);
+			var b=new B(3);
+			delete b.x;
+			console.log(a.x,b.x)
 		</script>
 	</body>
 </html>
