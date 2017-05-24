@@ -36,6 +36,7 @@
     <div>
         将flv文件拖入此处
     </div>
+    <a href="">下载</a>
     <script type="text/javascript" src="bound.js"></script>
     <script>
         var dropbox = document.querySelector('body div');
@@ -56,6 +57,19 @@
             var uint8 = new Uint8Array(buffer);
             //将拖拽入的flv视频转成了2进制数组
             flvParse.setFlv(uint8); //仍入转换器
+
+
+
+        }
+
+        function mp4Succ(blobs) {
+            document.querySelector('a').attributes.href.value = URL.createObjectURL(blobs, {
+                type: "application/octet-stream"
+            });
+            document.querySelector('a').innerHTML = '可以下载'
+            document.querySelector('a').attributes.download = "1.mp4";
+            // document.querySelector('a').click();
+            // window.URL.revokeObjectURL(blobs);
         }
     </script>
 </body>
