@@ -1,7 +1,7 @@
 import tag from './flvTag.js'
 class FlvParse {
     constructor() {
-        this.tempUint8 = [];
+        this.tempUint8 = new Uint8Array();
         this.arrTag = [];
         this.index = 0;
         this.tempArr = [];
@@ -21,24 +21,22 @@ class FlvParse {
     parse() {
         this.read(9); //略掉9个字节的flv header tag
         this.read(4); //略掉第一个4字节的 tag size
-        while (this.index < this.tempUint8.length) {
+        for (var i = 0; i < 3; i++) {
             let t = new tag();
             t.tagType = (this.read(1)[0]); //取出tag类型
-            t.dataSize = [].concat((this.read(3))); //取出包体大小
-            t.Timestamp = [].concat(this.read(4)); //取出解码时间
-            t.StreamID = [].concat(this.read(3)); //取出stream id
-            t.body = [].concat(this.read(this.getBodySum(t.dataSize))); //取出body
+            t.dataSize = this.read(3); //取出包体大小
+            t.Timestamp = this.read(4); //取出解码时间
+            t.StreamID = this.read(3); //取出stream id
+            t.body = this.read(this.getBodySum(t.dataSize)); //取出body
             this.arrTag.push(t);
             this.read(4);
         }
     }
     read(length) {
-        this.tempArr.length = 0;
-        for (let i = 0; i < length; i++) {
-            this.tempArr.push(this.tempUint8[this.index]);
-            this.index += 1;
-        }
-        return this.tempArr;
+        let u8a = new Uint8Array(length);
+        u8a.set(this.tempUint8.subarray(this.index, this.index + length), 0);
+        this.index += length;
+        return u8a;
     }
 
     /**

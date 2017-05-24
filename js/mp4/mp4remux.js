@@ -160,6 +160,9 @@ class MP4 {
 
     //创建ftyp&moov
     static generateInitSegment(meta) {
+        if (meta.constructor != Array) {
+            meta = [meta];
+        }
         let ftyp = MP4.box(MP4.types.ftyp, MP4.constants.FTYP);
         let moov = MP4.moov(meta);
 
@@ -171,10 +174,15 @@ class MP4 {
 
     // Movie metadata box
     static moov(meta) {
-        let mvhd = MP4.mvhd(meta.timescale, meta.duration); ///moov里面的第一个box
-        let trak = MP4.trak(meta);
+        let mvhd = MP4.mvhd(meta[0].timescale, meta[0].duration); ///moov里面的第一个box
+        let vtrak = MP4.trak(meta[0]);
+        if (meta.length > 1)
+            let atrak = MP4.trak(meta[1]);
         let mvex = MP4.mvex(meta);
-        return MP4.box(MP4.types.moov, mvhd, trak, mvex);
+        if (meta.length > 1)
+            return MP4.box(MP4.types.moov, mvhd, vtrak, atrak, mvex);
+        else
+            return MP4.box(MP4.types.moov, mvhd, vtrak, mvex);
     }
 
     // Movie header box
@@ -522,7 +530,10 @@ class MP4 {
 
     // Movie Extends box
     static mvex(meta) {
-        return MP4.box(MP4.types.mvex, MP4.trex(meta));
+        if (meta.length > 1)
+            return MP4.box(MP4.types.mvex, MP4.trex(meta[0]), MP4.trex(meta[1]));
+        else
+            return MP4.box(MP4.types.mvex, MP4.trex(meta[0]));
     }
 
     // Track Extends box
@@ -539,6 +550,9 @@ class MP4 {
             0x00, 0x00, 0x00, 0x00, // default_sample_size
             0x00, 0x01, 0x00, 0x01 // default_sample_flags
         ]);
+        // if (meta.type !== 'video') {
+        //     data[data.length - 1] = 0x00;
+        // }
         return MP4.box(MP4.types.trex, data);
     }
 

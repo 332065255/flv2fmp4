@@ -1,5 +1,6 @@
 import flvDemux from './flvdemux'
 import mediainfo from './media-info'
+import SPSParser from './sps-parser'
 class tagDemux {
     constructor() {
         this.TAG = this.constructor.name;
@@ -143,5 +144,305 @@ class tagDemux {
             filepositions: filepositions
         };
     }
+
+
+    parseChunks(flvtag) {
+        switch (flvtag.tagType) {
+            case 8: // Audio
+                this._parseAudioData(flvtag.body, 0, flvtag.body.length, flvtag.getTime());
+                break;
+            case 9: // Video
+                this._parseVideoData(flvtag.body, 0, flvtag.body.length, flvtag.getTime(), 0);
+                break;
+            case 18: // ScriptDataObject
+                this._parseScriptData(flvtag.body, 0, flvtag.body.length);
+                break;
+        }
+        return offset; // consumed bytes, just equals latest offset index
+    }
+
+    _parseVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition) {
+        if (dataSize <= 1) {
+            Log.w(this.TAG, 'Flv: Invalid video packet, missing VideoData payload!');
+            return;
+        }
+        //获取 video tag body 第一字节
+        let spec = (new Uint8Array(arrayBuffer, dataOffset, dataSize))[0];
+        //获取是否是关键帧
+        let frameType = (spec & 240) >>> 4;
+        //获取编码格式
+        let codecId = spec & 15;
+
+        if (codecId !== 7) {
+            this._onError(DemuxErrors.CODEC_UNSUPPORTED, `Flv: Unsupported codec in video frame: ${codecId}`);
+            return;
+        }
+
+        this._parseAVCVideoPacket(arrayBuffer, dataOffset + 1, dataSize - 1, tagTimestamp, tagPosition, frameType);
+    }
+
+    _parseAVCVideoPacket(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType) {
+        if (dataSize < 4) {
+            Log.w(this.TAG, 'Flv: Invalid AVC packet, missing AVCPacketType or/and CompositionTime');
+            return;
+        }
+
+        let le = this._littleEndian;
+        //获取 video tag body 第2字节到结尾
+        let v = new DataView(arrayBuffer, dataOffset, dataSize);
+
+        //IF CodecID == 7  AVCPacketType
+        // 0 = AVC sequence header
+        // 1 = AVC NALU
+        // 2 = AVC end of sequence (lower level NALU sequence ender is not required or supported)
+        let packetType = v.getUint8(0);
+        // 3字节
+        // IF AVCPacketType == 1
+        //  Composition time offset
+        // ELSE
+        //  0
+        let cts = v.getUint32(0, !le) & 0x00FFFFFF;
+
+        //IF AVCPacketType == 0 AVCDecoderConfigurationRecord（AVC sequence header）
+        //IF AVCPacketType == 1 One or more NALUs (Full frames are required)
+
+        /**
+         *AVCDecoderConfigurationRecord.包含着是H.264解码相关比较重要的sps和pps信息，
+         *再给AVC解码器送数据 流之前一定要把sps和pps信息送出，否则的话解码器不能正常解码。
+         *而且在解码器stop之后再次start之前，如seek、快进快退状态切换等，
+         *都 需要重新送一遍sps和pps的信息.AVCDecoderConfigurationRecord在FLV文件中一般情况也是出现1次，
+         *也就是第一个 video tag.
+         */
+        if (packetType === 0) { // AVCDecoderConfigurationRecord
+            this._parseAVCDecoderConfigurationRecord(arrayBuffer, dataOffset + 4, dataSize - 4);
+        } else if (packetType === 1) { // One or more Nalus
+            this._parseAVCVideoData(arrayBuffer, dataOffset + 4, dataSize - 4, tagTimestamp, tagPosition, frameType, cts);
+        } else if (packetType === 2) {
+            // empty, AVC end of sequence
+        } else {
+            this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid video packet type ${packetType}`);
+            return;
+        }
+    }
+
+    /**
+     * AVC 初始化
+     */
+    _parseAVCDecoderConfigurationRecord(arrayBuffer, dataOffset, dataSize) {
+        if (dataSize < 7) {
+            Log.w(this.TAG, 'Flv: Invalid AVCDecoderConfigurationRecord, lack of data!');
+            return;
+        }
+
+        let meta = this._videoMetadata;
+        let track = this._videoTrack;
+        let le = this._littleEndian;
+        let v = new DataView(arrayBuffer, dataOffset, dataSize);
+
+        if (!meta) {
+            meta = this._videoMetadata = {};
+            meta.type = 'video';
+            meta.id = track.id;
+            meta.timescale = this._timescale;
+            meta.duration = this._duration;
+        } else {
+            if (typeof meta.avcc !== 'undefined') {
+                Log.w(this.TAG, 'Found another AVCDecoderConfigurationRecord!');
+            }
+        }
+
+        let version = v.getUint8(0); // configurationVersion
+        let avcProfile = v.getUint8(1); // avcProfileIndication
+        let profileCompatibility = v.getUint8(2); // profile_compatibility
+        let avcLevel = v.getUint8(3); // AVCLevelIndication
+
+        if (version !== 1 || avcProfile === 0) {
+            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AVCDecoderConfigurationRecord');
+            return;
+        }
+
+        this._naluLengthSize = (v.getUint8(4) & 3) + 1; // lengthSizeMinusOne
+        if (this._naluLengthSize !== 3 && this._naluLengthSize !== 4) { // holy shit!!!
+            this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Strange NaluLengthSizeMinusOne: ${this._naluLengthSize - 1}`);
+            return;
+        }
+
+        let spsCount = v.getUint8(5) & 31; // numOfSequenceParameterSets
+        if (spsCount === 0 || spsCount > 1) {
+            this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid H264 SPS count: ${spsCount}`);
+            return;
+        }
+
+        let offset = 6;
+
+        for (let i = 0; i < spsCount; i++) {
+            let len = v.getUint16(offset, !le); // sequenceParameterSetLength
+            offset += 2;
+
+            if (len === 0) {
+                continue;
+            }
+
+            // Notice: Nalu without startcode header (00 00 00 01)
+            let sps = new Uint8Array(arrayBuffer, dataOffset + offset, len);
+            offset += len;
+
+            let config = SPSParser.parseSPS(sps);
+            meta.codecWidth = config.codec_size.width;
+            meta.codecHeight = config.codec_size.height;
+            meta.presentWidth = config.present_size.width;
+            meta.presentHeight = config.present_size.height;
+
+            meta.profile = config.profile_string;
+            meta.level = config.level_string;
+            meta.bitDepth = config.bit_depth;
+            meta.chromaFormat = config.chroma_format;
+            meta.sarRatio = config.sar_ratio;
+            meta.frameRate = config.frame_rate;
+
+            if (config.frame_rate.fixed === false ||
+                config.frame_rate.fps_num === 0 ||
+                config.frame_rate.fps_den === 0) {
+                meta.frameRate = this._referenceFrameRate;
+            }
+
+            let fps_den = meta.frameRate.fps_den;
+            let fps_num = meta.frameRate.fps_num;
+            meta.refSampleDuration = Math.floor(meta.timescale * (fps_den / fps_num));
+
+            let codecArray = sps.subarray(1, 4);
+            let codecString = 'avc1.';
+            for (let j = 0; j < 3; j++) {
+                let h = codecArray[j].toString(16);
+                if (h.length < 2) {
+                    h = '0' + h;
+                }
+                codecString += h;
+            }
+            meta.codec = codecString;
+
+            let mi = this._mediaInfo;
+            mi.width = meta.codecWidth;
+            mi.height = meta.codecHeight;
+            mi.fps = meta.frameRate.fps;
+            mi.profile = meta.profile;
+            mi.level = meta.level;
+            mi.chromaFormat = config.chroma_format_string;
+            mi.sarNum = meta.sarRatio.width;
+            mi.sarDen = meta.sarRatio.height;
+            mi.videoCodec = codecString;
+
+            if (mi.hasAudio) {
+                if (mi.audioCodec != null) {
+                    mi.mimeType = 'video/x-flv; codecs="' + mi.videoCodec + ',' + mi.audioCodec + '"';
+                }
+            } else {
+                mi.mimeType = 'video/x-flv; codecs="' + mi.videoCodec + '"';
+            }
+            if (mi.isComplete()) {
+                this._onMediaInfo(mi);
+            }
+        }
+
+        let ppsCount = v.getUint8(offset); // numOfPictureParameterSets
+        if (ppsCount === 0 || ppsCount > 1) {
+            this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid H264 PPS count: ${ppsCount}`);
+            return;
+        }
+
+        offset++;
+
+        for (let i = 0; i < ppsCount; i++) {
+            let len = v.getUint16(offset, !le); // pictureParameterSetLength
+            offset += 2;
+
+            if (len === 0) {
+                continue;
+            }
+
+            // pps is useless for extracting video information
+            offset += len;
+        }
+
+        meta.avcc = new Uint8Array(dataSize);
+        meta.avcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
+        console.log(this.TAG, 'Parsed AVCDecoderConfigurationRecord');
+
+        // if (false) {
+        //     // flush parsed frames
+        //     if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+        //         this._onDataAvailable(this._audioTrack, this._videoTrack);
+        //     }
+        // } else {
+        //     this._videoInitialMetadataDispatched = true;
+        // }
+        // notify new metadata
+        this._dispatch = false;
+        console.log(meta);
+        // this._onTrackMetadata('video', meta);
+    }
+
+    /**
+     * 普通的AVC 片段
+     */
+    _parseAVCVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, cts) {
+        let le = this._littleEndian;
+        let v = new DataView(arrayBuffer, dataOffset, dataSize);
+
+        let units = [],
+            length = 0;
+
+        let offset = 0;
+        const lengthSize = this._naluLengthSize;
+        let dts = this._timestampBase + tagTimestamp;
+        let keyframe = (frameType === 1); // from FLV Frame Type constants
+
+        while (offset < dataSize) {
+            if (offset + 4 >= dataSize) {
+                Log.w(this.TAG, `Malformed Nalu near timestamp ${dts}, offset = ${offset}, dataSize = ${dataSize}`);
+                break; // data not enough for next Nalu
+            }
+            // Nalu with length-header (AVC1)
+            let naluSize = v.getUint32(offset, !le); // Big-Endian read
+            if (lengthSize === 3) {
+                naluSize >>>= 8;
+            }
+            if (naluSize > dataSize - lengthSize) {
+                Log.w(this.TAG, `Malformed Nalus near timestamp ${dts}, NaluSize > DataSize!`);
+                return;
+            }
+
+            let unitType = v.getUint8(offset + lengthSize) & 0x1F;
+
+            if (unitType === 5) { // IDR
+                keyframe = true;
+            }
+
+            let data = new Uint8Array(arrayBuffer, dataOffset + offset, lengthSize + naluSize);
+            let unit = { type: unitType, data: data };
+            units.push(unit);
+            length += data.byteLength;
+
+            offset += lengthSize + naluSize;
+        }
+
+        if (units.length) {
+            let track = this._videoTrack;
+            let avcSample = {
+                units: units,
+                length: length,
+                isKeyframe: keyframe,
+                dts: dts,
+                cts: cts,
+                pts: (dts + cts)
+            };
+            if (keyframe) {
+                avcSample.fileposition = tagPosition;
+            }
+            track.samples.push(avcSample);
+            track.length += length;
+        }
+    }
+
 }
 export default new tagDemux();
