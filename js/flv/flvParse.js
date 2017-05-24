@@ -21,7 +21,8 @@ class FlvParse {
     parse() {
         this.read(9); //略掉9个字节的flv header tag
         this.read(4); //略掉第一个4字节的 tag size
-        for (var i = 0; i < 3; i++) {
+        // for (var i = 0; i < 3; i++) {
+        while (this.index < this.tempUint8.length) {
             let t = new tag();
             t.tagType = (this.read(1)[0]); //取出tag类型
             t.dataSize = this.read(3); //取出包体大小
@@ -31,6 +32,8 @@ class FlvParse {
             this.arrTag.push(t);
             this.read(4);
         }
+
+        // }
     }
     read(length) {
         let u8a = new Uint8Array(length);

@@ -176,8 +176,11 @@ class MP4 {
     static moov(meta) {
         let mvhd = MP4.mvhd(meta[0].timescale, meta[0].duration); ///moov里面的第一个box
         let vtrak = MP4.trak(meta[0]);
-        if (meta.length > 1)
-            let atrak = MP4.trak(meta[1]);
+        let atrak;
+        if (meta.length > 1) {
+            atrak = MP4.trak(meta[1]);
+        }
+
         let mvex = MP4.mvex(meta);
         if (meta.length > 1)
             return MP4.box(MP4.types.moov, mvhd, vtrak, atrak, mvex);

@@ -149,16 +149,15 @@ class tagDemux {
     parseChunks(flvtag) {
         switch (flvtag.tagType) {
             case 8: // Audio
-                this._parseAudioData(flvtag.body, 0, flvtag.body.length, flvtag.getTime());
+                this._parseAudioData(flvtag.body.buffer, 0, flvtag.body.length, flvtag.getTime());
                 break;
             case 9: // Video
-                this._parseVideoData(flvtag.body, 0, flvtag.body.length, flvtag.getTime(), 0);
+                this._parseVideoData(flvtag.body.buffer, 0, flvtag.body.length, flvtag.getTime(), 0);
                 break;
             case 18: // ScriptDataObject
                 this._parseScriptData(flvtag.body, 0, flvtag.body.length);
                 break;
         }
-        return offset; // consumed bytes, just equals latest offset index
     }
 
     _parseVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition) {
@@ -368,18 +367,21 @@ class tagDemux {
         meta.avcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
         console.log(this.TAG, 'Parsed AVCDecoderConfigurationRecord');
 
-        // if (false) {
-        //     // flush parsed frames
-        //     if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-        //         this._onDataAvailable(this._audioTrack, this._videoTrack);
-        //     }
-        // } else {
-        //     this._videoInitialMetadataDispatched = true;
-        // }
+        if (this._isInitialMetadataDispatched()) {
+            // flush parsed frames
+            if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+                this._onDataAvailable(this._audioTrack, this._videoTrack);
+            }
+        } else {
+            this._videoInitialMetadataDispatched = true;
+        }
         // notify new metadata
         this._dispatch = false;
-        console.log(meta);
-        // this._onTrackMetadata('video', meta);
+        // if (this._onTrackMetadata) {
+        //     this._onTrackMetadata.call(null, meta);
+        // }
+
+        this._onTrackMetadata('video', meta);
     }
 
     /**
@@ -443,6 +445,246 @@ class tagDemux {
             track.length += length;
         }
     }
+    _parseAudioData(arrayBuffer, dataOffset, dataSize, tagTimestamp) {
+        if (dataSize <= 1) {
+            Log.w(this.TAG, 'Flv: Invalid audio packet, missing SoundData payload!');
+            return;
+        }
 
+        let meta = this._audioMetadata;
+        let track = this._audioTrack;
+
+        if (!meta || !meta.codec) {
+            // initial metadata
+            meta = this._audioMetadata = {};
+            meta.type = 'audio';
+            meta.id = track.id;
+            meta.timescale = this._timescale;
+            meta.duration = this._duration;
+
+            let le = this._littleEndian;
+            let v = new DataView(arrayBuffer, dataOffset, dataSize);
+
+            let soundSpec = v.getUint8(0);
+
+            let soundFormat = soundSpec >>> 4;
+            if (soundFormat !== 10) { // AAC
+                // TODO: support MP3 audio codec
+                this._onError(DemuxErrors.CODEC_UNSUPPORTED, 'Flv: Unsupported audio codec idx: ' + soundFormat);
+                return;
+            }
+
+            let soundRate = 0;
+            let soundRateIndex = (soundSpec & 12) >>> 2;
+
+            let soundRateTable = [5500, 11025, 22050, 44100, 48000];
+
+            if (soundRateIndex < soundRateTable.length) {
+                soundRate = soundRateTable[soundRateIndex];
+            } else {
+                this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid audio sample rate idx: ' + soundRateIndex);
+                return;
+            }
+
+            let soundSize = (soundSpec & 2) >>> 1; // unused
+            let soundType = (soundSpec & 1);
+
+            meta.audioSampleRate = soundRate;
+            meta.channelCount = (soundType === 0 ? 1 : 2);
+            meta.refSampleDuration = Math.floor(1024 / meta.audioSampleRate * meta.timescale);
+            meta.codec = 'mp4a.40.5';
+        }
+
+        let aacData = this._parseAACAudioData(arrayBuffer, dataOffset + 1, dataSize - 1);
+        if (aacData == undefined) {
+            return;
+        }
+
+        if (aacData.packetType === 0) { // AAC sequence header (AudioSpecificConfig)
+            if (meta.config) {
+                Log.w(this.TAG, 'Found another AudioSpecificConfig!');
+            }
+            let misc = aacData.data;
+            meta.audioSampleRate = misc.samplingRate;
+            meta.channelCount = misc.channelCount;
+            meta.codec = misc.codec;
+            meta.config = misc.config;
+            // The decode result of an aac sample is 1024 PCM samples
+            meta.refSampleDuration = Math.floor(1024 / meta.audioSampleRate * meta.timescale);
+            console.log(this.TAG, 'Parsed AudioSpecificConfig');
+
+            if (this._isInitialMetadataDispatched()) {
+                // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
+                if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+                    this._onDataAvailable(this._audioTrack, this._videoTrack);
+                }
+            } else {
+                this._audioInitialMetadataDispatched = true;
+            }
+            // then notify new metadata
+            this._dispatch = false;
+            this._onTrackMetadata('audio', meta);
+
+            let mi = this._mediaInfo;
+            mi.audioCodec = 'mp4a.40.' + misc.originalAudioObjectType;
+            mi.audioSampleRate = meta.audioSampleRate;
+            mi.audioChannelCount = meta.channelCount;
+            if (mi.hasVideo) {
+                if (mi.videoCodec != null) {
+                    mi.mimeType = 'video/x-flv; codecs="' + mi.videoCodec + ',' + mi.audioCodec + '"';
+                }
+            } else {
+                mi.mimeType = 'video/x-flv; codecs="' + mi.audioCodec + '"';
+            }
+            if (mi.isComplete()) {
+                this._onMediaInfo(mi);
+            }
+            return;
+        } else if (aacData.packetType === 1) { // AAC raw frame data
+            let dts = this._timestampBase + tagTimestamp;
+            let aacSample = { unit: aacData.data, dts: dts, pts: dts };
+            track.samples.push(aacSample);
+            track.length += aacData.data.length;
+        } else {
+            console.log(this.TAG, `Flv: Unsupported AAC data type ${aacData.packetType}`);
+        }
+    }
+
+    _parseAACAudioData(arrayBuffer, dataOffset, dataSize) {
+        if (dataSize <= 1) {
+            console.log(this.TAG, 'Flv: Invalid AAC packet, missing AACPacketType or/and Data!');
+            return;
+        }
+
+        let result = {};
+        let array = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+
+        result.packetType = array[0];
+
+        if (array[0] === 0) {
+            result.data = this._parseAACAudioSpecificConfig(arrayBuffer, dataOffset + 1, dataSize - 1);
+        } else {
+            result.data = array.subarray(1);
+        }
+
+        return result;
+    }
+
+    _parseAACAudioSpecificConfig(arrayBuffer, dataOffset, dataSize) {
+        let array = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+        let config = null;
+
+        let mpegSamplingRates = [
+            96000, 88200, 64000, 48000, 44100, 32000,
+            24000, 22050, 16000, 12000, 11025, 8000, 7350
+        ];
+
+        /* Audio Object Type:
+           0: Null
+           1: AAC Main
+           2: AAC LC
+           3: AAC SSR (Scalable Sample Rate)
+           4: AAC LTP (Long Term Prediction)
+           5: HE-AAC / SBR (Spectral Band Replication)
+           6: AAC Scalable
+        */
+
+        let audioObjectType = 0;
+        let originalAudioObjectType = 0;
+        let audioExtensionObjectType = null;
+        let samplingIndex = 0;
+        let extensionSamplingIndex = null;
+
+        // 5 bits
+        audioObjectType = originalAudioObjectType = array[0] >>> 3;
+        // 4 bits
+        samplingIndex = ((array[0] & 0x07) << 1) | (array[1] >>> 7);
+        if (samplingIndex < 0 || samplingIndex >= mpegSamplingRates.length) {
+            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid sampling frequency index!');
+            return;
+        }
+
+        let samplingFrequence = mpegSamplingRates[samplingIndex];
+
+        // 4 bits
+        let channelConfig = (array[1] & 0x78) >>> 3;
+        if (channelConfig < 0 || channelConfig >= 8) {
+            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid channel configuration');
+            return;
+        }
+
+        if (audioObjectType === 5) { // HE-AAC?
+            // 4 bits
+            extensionSamplingIndex = ((array[1] & 0x07) << 1) | (array[2] >>> 7);
+            // 5 bits
+            audioExtensionObjectType = (array[2] & 0x7C) >>> 2;
+        }
+
+        // workarounds for various browsers
+        let userAgent = self.navigator.userAgent.toLowerCase();
+
+        if (userAgent.indexOf('firefox') !== -1) {
+            // firefox: use SBR (HE-AAC) if freq less than 24kHz
+            if (samplingIndex >= 6) {
+                audioObjectType = 5;
+                config = new Array(4);
+                extensionSamplingIndex = samplingIndex - 3;
+            } else { // use LC-AAC
+                audioObjectType = 2;
+                config = new Array(2);
+                extensionSamplingIndex = samplingIndex;
+            }
+        } else if (userAgent.indexOf('android') !== -1) {
+            // android: always use LC-AAC
+            audioObjectType = 2;
+            config = new Array(2);
+            extensionSamplingIndex = samplingIndex;
+        } else {
+            // for other browsers, e.g. chrome...
+            // Always use HE-AAC to make it easier to switch aac codec profile
+            audioObjectType = 5;
+            extensionSamplingIndex = samplingIndex;
+            config = new Array(4);
+
+            if (samplingIndex >= 6) {
+                extensionSamplingIndex = samplingIndex - 3;
+            } else if (channelConfig === 1) { // Mono channel
+                audioObjectType = 2;
+                config = new Array(2);
+                extensionSamplingIndex = samplingIndex;
+            }
+        }
+
+        config[0] = audioObjectType << 3;
+        config[0] |= (samplingIndex & 0x0F) >>> 1;
+        config[1] = (samplingIndex & 0x0F) << 7;
+        config[1] |= (channelConfig & 0x0F) << 3;
+        if (audioObjectType === 5) {
+            config[1] |= ((extensionSamplingIndex & 0x0F) >>> 1);
+            config[2] = (extensionSamplingIndex & 0x01) << 7;
+            // extended audio object type: force to 2 (LC-AAC)
+            config[2] |= (2 << 2);
+            config[3] = 0;
+        }
+
+        return {
+            config: config,
+            samplingRate: samplingFrequence,
+            channelCount: channelConfig,
+            codec: 'mp4a.40.' + audioObjectType,
+            originalAudioObjectType: originalAudioObjectType
+        };
+    }
+    _isInitialMetadataDispatched() {
+        if (this._hasAudio && this._hasVideo) { // both audio & video
+            return this._audioInitialMetadataDispatched && this._videoInitialMetadataDispatched;
+        }
+        if (this._hasAudio && !this._hasVideo) { // audio only
+            return this._audioInitialMetadataDispatched;
+        }
+        if (!this._hasAudio && this._hasVideo) { // video only
+            return this._videoInitialMetadataDispatched;
+        }
+    }
 }
 export default new tagDemux();
