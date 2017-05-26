@@ -146,6 +146,20 @@ class tagDemux {
     }
 
 
+    /**
+     * 传入tags输出moof和mdat
+     * 
+     * @param {any} tags 
+     * 
+     * @memberof tagDemux
+     */
+    moofTag(tags) {
+        for (let i = 0; i < tags.length; i++) {
+            this.parseChunks(tags[i]);
+        }
+
+    }
+
     parseChunks(flvtag) {
         switch (flvtag.tagType) {
             case 8: // Audio
