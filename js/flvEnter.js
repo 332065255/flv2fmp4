@@ -34,8 +34,6 @@ window.flvParse = {
         window.tracks = new Array();
         let mediaSeg = flvparse.arrTag.slice(3);
 
-        // console.log(mediaSeg);
-        // return;
 
 
         tagdemux.moofTag(mediaSeg);
