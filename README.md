@@ -5,13 +5,11 @@ http://blog.csdn.net/g332065255/article/details/71158863
 
 npm install 
 
-如果安装了全局的webpack
-执行webpack即可
+node debug.js
 
-如果没有,请自行安装后执行webpack
-
-
-扔进去一个flv,还你一个mp4,就这么神奇
+浏览器访问  127.0.0.1:8080即可
 
 现在扔进去一个flv就可以直接播放了
+
+
 ```

@@ -1,7 +1,9 @@
 var path = require('path');
 
 module.exports = {
-    entry: path.resolve(__dirname, './js/flvEnter.js'),
+    entry: {
+        app: [path.resolve(__dirname, './js/flvEnter.js')],
+    },
     output: {
         path: path.resolve(__dirname, './'),
         filename: 'bound.js',
