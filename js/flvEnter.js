@@ -14,8 +14,9 @@ window.flvParse = {
         tagdemux._onMediaInfo = flvParse.metaSucc.bind(this)
         tagdemux.parseMetadata(flvparse.arrTag[0].body);
         tagdemux.parseChunks(flvparse.arrTag[1])
+        console.log(flvparse.arrTag[2])
         tagdemux.parseChunks(flvparse.arrTag[2])
-
+            //用来获取moov
 
     },
     nextTag: function() {
@@ -25,15 +26,16 @@ window.flvParse = {
         succ = f;
     },
     metaSucc: function(mi) {
+        //获取ftyp和moov
         window.ftyp_moov = mp4remux.generateInitSegment(metas);
-        console.log(new Blob([ftyp_moov.buffer]));
-        // if (window.mp4Succ) {
-        //     window.mp4Succ(new Blob([ftyp_moov.buffer]))
-        // }
+
+
+        //产出moof
         window.tracks = new Array();
         let mediaSeg = flvparse.arrTag.slice(3);
-        // console.log(mediaSeg)
 
+        // console.log(mediaSeg);
+        // return;
 
 
         tagdemux.moofTag(mediaSeg);
@@ -46,12 +48,6 @@ window.flvParse = {
 
 
 
-
-        // m4mof.remux();
-        // mp4remux.
-        // if (window.mp4Succ) {
-        //     window.mp4Succ(new Blob([window.ftyp_moov.buffer]))
-        // }
     },
     onMdiaSegment: function(track, value) {
         console.log(track, value, new Uint8Array(value.data))
@@ -65,7 +61,8 @@ window.flvParse = {
             u8a.set(window.tracks[0], window.ftyp_moov.length)
             u8a.set(window.tracks[1], window.ftyp_moov.length + window.tracks[0].length)
             if (window.mp4Succ) {
-                window.mp4Succ(new Blob([u8a.buffer]))
+                // window.mp4Succ(new Blob([u8a.buffer]))
+                window.mp4Succ(u8a);
             }
         }
     }

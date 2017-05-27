@@ -610,7 +610,7 @@ class tagDemux {
         let audioExtensionObjectType = null;
         let samplingIndex = 0;
         let extensionSamplingIndex = null;
-
+        // debugger;
         // 5 bits
         audioObjectType = originalAudioObjectType = array[0] >>> 3;
         // 4 bits

@@ -30,6 +30,16 @@
             font-size: 18px;
         }
     </style>
+    <script>
+	    	let mimecode='video/mp4; codecs="avc1.640020,mp4a.40.2"';
+	    	let sb=null;
+	    	let mes=new MediaSource;
+	    	mes.addEventListener('sourceopen',sourceOpen);
+	    
+	    	function sourceOpen(){
+	    		sb =mes.addSourceBuffer(mimecode);
+	    	}
+    </script>
 </head>
 
 <body>
@@ -37,8 +47,11 @@
         将flv文件拖入此处
     </div>
     <a href="">下载</a>
+    <video autoplay="autoplay" width="500px" height="400px" controls="controls" style="background-color: #000000;"></video>
     <script type="text/javascript" src="bound.js"></script>
     <script>
+    		var video=document.querySelector('video');
+    		video.src=URL.createObjectURL(mes);
         var dropbox = document.querySelector('body div');
         dropbox.addEventListener("dragover", function(e) {
             e.stopPropagation();
@@ -63,11 +76,12 @@
         }
 
         function mp4Succ(blobs) {
-            document.querySelector('a').attributes.href.value = URL.createObjectURL(blobs, {
-                type: "application/octet-stream"
-            });
-            document.querySelector('a').innerHTML = '可以下载'
-            document.querySelector('a').attributes.download = "1.mp4";
+        		sb.appendBuffer(blobs)
+//          document.querySelector('a').attributes.href.value = URL.createObjectURL(blobs, {
+//              type: "application/octet-stream"
+//          });
+//          document.querySelector('a').innerHTML = '可以下载'
+//          document.querySelector('a').attributes.download = "1.mp4";
             // document.querySelector('a').click();
             // window.URL.revokeObjectURL(blobs);
         }
