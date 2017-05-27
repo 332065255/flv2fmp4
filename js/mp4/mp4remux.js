@@ -641,7 +641,10 @@ class MP4 {
         ], 0);
 
         for (let i = 0; i < sampleCount; i++) {
+
             let duration = samples[i].duration;
+            console.log(duration);
+
             let size = samples[i].size;
             let flags = samples[i].flags;
             let cts = samples[i].cts;

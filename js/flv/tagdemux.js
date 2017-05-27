@@ -156,6 +156,7 @@ class tagDemux {
     moofTag(tags) {
         for (let i = 0; i < tags.length; i++) {
             this.parseChunks(tags[i]);
+            // console.log("tagTimestamp", tags[i].getTime(), tags[i]);
         }
 
     }
@@ -175,6 +176,7 @@ class tagDemux {
     }
 
     _parseVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition) {
+        console.log("tagTimestamp", tagTimestamp);
         if (dataSize <= 1) {
             Log.w(this.TAG, 'Flv: Invalid video packet, missing VideoData payload!');
             return;

@@ -27,12 +27,15 @@ window.flvParse = {
     metaSucc: function(mi) {
         window.ftyp_moov = mp4remux.generateInitSegment(metas);
         console.log(new Blob([ftyp_moov.buffer]));
-        if (window.mp4Succ) {
-            window.mp4Succ(new Blob([ftyp_moov.buffer]))
-        }
+        // if (window.mp4Succ) {
+        //     window.mp4Succ(new Blob([ftyp_moov.buffer]))
+        // }
         window.tracks = new Array();
-        let mediaSeg = flvparse.arrTag.slice(3, 200);
+        let mediaSeg = flvparse.arrTag.slice(3);
         // console.log(mediaSeg)
+
+
+
         tagdemux.moofTag(mediaSeg);
         tagdemux._videoTrack.sequenceNumber = 0;
         tagdemux._audioTrack.sequenceNumber = 1;
@@ -40,6 +43,10 @@ window.flvParse = {
         let m4mof = new mp4moof({ _isLive: false })
         m4mof.onMediaSegment = flvParse.onMdiaSegment.bind(this);
         m4mof.remux(tagdemux._audioTrack, tagdemux._videoTrack);
+
+
+
+
         // m4mof.remux();
         // mp4remux.
         // if (window.mp4Succ) {
@@ -57,9 +64,9 @@ window.flvParse = {
             u8a.set(window.ftyp_moov, 0)
             u8a.set(window.tracks[0], window.ftyp_moov.length)
             u8a.set(window.tracks[1], window.ftyp_moov.length + window.tracks[0].length)
-                // if (window.mp4Succ) {
-                //     window.mp4Succ(new Blob([u8a.buffer]))
-                // }
+            if (window.mp4Succ) {
+                window.mp4Succ(new Blob([u8a.buffer]))
+            }
         }
     }
 
