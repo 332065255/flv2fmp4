@@ -41,8 +41,8 @@ class tagDemux {
             fps_den: 1000
         };
 
-        this._videoTrack = { type: 'video', id: 1, sequenceNumber: 0, samples: [], length: 0 };
-        this._audioTrack = { type: 'audio', id: 2, sequenceNumber: 0, samples: [], length: 0 };
+        this._videoTrack = { type: 'video', id: 1, sequenceNumber: 0, addcoefficient: 2, samples: [], length: 0 };
+        this._audioTrack = { type: 'audio', id: 2, sequenceNumber: 1, addcoefficient: 2, samples: [], length: 0 };
 
         this._littleEndian = (function() {
             let buf = new ArrayBuffer(2);
@@ -154,14 +154,21 @@ class tagDemux {
      * @memberof tagDemux
      */
     moofTag(tags) {
+
         for (let i = 0; i < tags.length; i++) {
+            this._dispatch = true;
             this.parseChunks(tags[i]);
             // console.log("tagTimestamp", tags[i].getTime(), tags[i]);
         }
-
+        if (this._isInitialMetadataDispatched()) {
+            if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+                this._onDataAvailable(this._audioTrack, this._videoTrack);
+            }
+        }
     }
 
     parseChunks(flvtag) {
+
         switch (flvtag.tagType) {
             case 8: // Audio
                 this._parseAudioData(flvtag.body.buffer, 0, flvtag.body.length, flvtag.getTime());
@@ -170,13 +177,12 @@ class tagDemux {
                 this._parseVideoData(flvtag.body.buffer, 0, flvtag.body.length, flvtag.getTime(), 0);
                 break;
             case 18: // ScriptDataObject
-                this._parseScriptData(flvtag.body, 0, flvtag.body.length);
+                this.parseMetadata(flvtag.body);
                 break;
         }
     }
 
     _parseVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition) {
-        console.log("tagTimestamp", tagTimestamp);
         if (dataSize <= 1) {
             Log.w(this.TAG, 'Flv: Invalid video packet, missing VideoData payload!');
             return;

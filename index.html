@@ -29,45 +29,56 @@
             transform: translate(-50%, -50%);
             font-size: 18px;
         }
-        div{
-        	  height: 100%;
-        	  width: 100%;
-        	  
+        
+        div {
+            height: 100%;
+            width: 100%;
         }
-        #con div{
-        		width: 50%;
-        		float: left;
+        
+        #con div {
+            width: 50%;
+            float: left;
         }
-        #con video{
-        		width: 50%;
-        		height: 100%;
-        		float: left;
+        
+        #con video {
+            width: 50%;
+            height: 100%;
+            float: left;
         }
     </style>
     <script>
-	    	let mimecode='video/mp4; codecs="avc1.640020,mp4a.40.2"';
-	    	let sb=null;
-	    	let mes=new MediaSource;
-	    	mes.addEventListener('sourceopen',sourceOpen);
-	    
-	    	function sourceOpen(){
-	    		sb =mes.addSourceBuffer(mimecode);
-	    	}
+        let mimecode = 'video/mp4; codecs="avc1.640020,mp4a.40.2"';
+        let sb = null;
+        let mes = new MediaSource;
+        mes.addEventListener('sourceopen', sourceOpen);
+
+        function sourceOpen() {
+            sb = mes.addSourceBuffer(mimecode);
+            sb.addEventListener('updateend', () => {
+                doappendbuff();
+            });
+        }
     </script>
 </head>
 
 <body>
     <div id='con'>
-    		<div>将flv文件拖入此处</div>
+        <div>将flv文件拖入此处</div>
         <video autoplay="autoplay" controls="controls" style="background-color: #000000;"></video>
     </div>
     <a href=""></a>
     <!--<video autoplay="autoplay" width="500px" height="400px" controls="controls" style="background-color: #000000;"></video>-->
     <script type="text/javascript" src="bound.js"></script>
     <script>
-    		var video=document.querySelector('video');
-    		video.src=URL.createObjectURL(mes);
+        var video = document.querySelector('video');
+        video.src = URL.createObjectURL(mes);
+        var _this = this;
         var dropbox = document.querySelector('body #con div');
+
+        var temp_arr = []
+
+
+
         dropbox.addEventListener("dragover", function(e) {
             e.stopPropagation();
             e.preventDefault();
@@ -85,20 +96,30 @@
             var uint8 = new Uint8Array(buffer);
             //将拖拽入的flv视频转成了2进制数组
             flvParse.setFlv(uint8); //仍入转换器
-
-
-
+            // var flv2mp4 = new flv2fmp4();
+            // flv2mp4.setflv(buffer);
+            // flv2mp4.onInitSegment = onInitSegment.bind(_this);
+            // flv2mp4.onMediaSegment = onMediaSegment.bind(_this);
         }
 
-        function mp4Succ(blobs) {
-        		sb.appendBuffer(blobs)
-//          document.querySelector('a').attributes.href.value = URL.createObjectURL(blobs, {
-//              type: "application/octet-stream"
-//          });
-//          document.querySelector('a').innerHTML = '可以下载'
-//          document.querySelector('a').attributes.download = "1.mp4";
-            // document.querySelector('a').click();
-            // window.URL.revokeObjectURL(blobs);
+        function mp4Init(a) {
+            console.log('init', a);
+            temp_arr.push(a.buffer);
+            doappendbuff();
+        }
+
+        function onMediaSegment(a) {
+            console.log('moof', a);
+            temp_arr.push(a.buffer);
+            doappendbuff();
+        }
+
+        function doappendbuff() {
+            if (!sb.updating && temp_arr.length > 0) {
+                console.log('开始添加');
+                sb.appendBuffer(temp_arr.shift());
+            }
+
         }
     </script>
 </body>
