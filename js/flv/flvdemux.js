@@ -99,7 +99,7 @@ export default class flvDemux {
         let buffer = uint8.buffer;
         let dv = new DataView(buffer, 0, dataSize);
         let value = null;
-
+        let objectEnd = false;
         let type = (dv.getUint8(dataOffset));
         dataOffset += 1;
         switch (type) {
@@ -136,7 +136,8 @@ export default class flvDemux {
                         if (amfobj.objectEnd)
                             break;
                         value[amfobj.data.name] = amfobj.data.value;
-                        dataOffset += amfobj.size;
+                        // dataOffset += amfobj.size;
+                        dataOffset = amfobj.size;
                     }
                     if (offset <= dataSize - 3) {
                         let marker = v.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;

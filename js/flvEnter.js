@@ -20,7 +20,7 @@ window.flvParse = {
         if (window.onMediaSegment) {
             temp.onMediaSegment = window.onMediaSegment
         }
-        temp.setflv(uint8.buffer);
+        return temp.setflv(uint8.buffer);
 
 
         //用来获取moov

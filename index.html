@@ -22,7 +22,7 @@
             line-height: 400px;
             text-align: center;
             background-color: aquamarine;
-            border-radius: 10px;
+            /*border-radius: 10px;*/
             position: relative;
             top: 50%;
             left: 50%;
@@ -35,7 +35,7 @@
             width: 100%;
         }
         
-        #con div {
+        #con #drop {
             width: 50%;
             float: left;
         }
@@ -44,6 +44,43 @@
             width: 50%;
             height: 100%;
             float: left;
+        }
+        
+        #input {
+            width: 100%;
+            height: 40px;
+            position: absolute;
+            bottom: -40px;
+            background-color: #fff;
+            border: 1px solid #6f6f6f;
+            line-height: 40px;
+            text-align: left;
+            box-sizing: border-box;
+        }
+        
+        #input input {
+            position: relative;
+            left: 0px;
+            top: 0px;
+            height: 34px;
+            width: 80%;
+            outline: none;
+            border: none;
+            padding: 5px;
+            font-size: 18px;
+            box-sizing: border-box;
+            float: left;
+        }
+        
+        #btn_load {
+            width: 20%;
+            float: left;
+            text-align: center;
+            height: 100%;
+            background-color: rgb(18, 120, 189);
+            color: white;
+            user-select: false;
+            cursor: default;
         }
     </style>
     <script>
@@ -63,8 +100,12 @@
 
 <body>
     <div id='con'>
-        <div>将flv文件拖入此处</div>
+        <div id='drop'>将flv文件拖入此处</div>
         <video autoplay="autoplay" controls="controls" style="background-color: #000000;"></video>
+        <div id='input'>
+            <input id='videosrc' type="text" placeholder="请输入flv地址">
+            <div id='btn_load'>加载</div>
+        </div>
     </div>
     <a href=""></a>
     <!--<video autoplay="autoplay" width="500px" height="400px" controls="controls" style="background-color: #000000;"></video>-->
@@ -73,10 +114,46 @@
         var video = document.querySelector('video');
         video.src = URL.createObjectURL(mes);
         var _this = this;
+        var req = null;
         var dropbox = document.querySelector('body #con div');
+        var btn_load = document.querySelector("#btn_load");
+        var temp_u8a = new Uint8Array();
+        var headers = new window.Headers();
+        btn_load.addEventListener("click", function() {
+            req = new Request(document.querySelector("#videosrc").value, {
+                headers: headers,
+                method: 'GET',
+                cache: 'default',
+                mode: "cors"
+            });
 
+
+            fetch(req).then(function(response) {
+                //  typeof(response.body)==ReadableStream
+                var reader = response.body.getReader();
+                return _this.readr(reader);
+            })
+        })
         var temp_arr = []
 
+        function readr(reader) {
+            return reader.read().then(function(result) {
+
+                let chunk = result.value; ///Uint8Array
+
+                if (result.done) {
+                    console.log("this's over");
+                    return reader.cancel();
+                }
+                let temp = new Uint8Array(temp_u8a.length + chunk.length);
+                temp.set(temp_u8a, 0);
+                temp.set(chunk, temp_u8a.length);
+                let offest = flvParse.setFlv(temp);
+                temp_u8a = temp.slice(offest);
+                console.log('offest', offest, '数据长度', temp.length)
+                return _this.readr(reader);
+            })
+        }
 
 
         dropbox.addEventListener("dragover", function(e) {
@@ -118,6 +195,8 @@
             if (!sb.updating && temp_arr.length > 0) {
                 console.log('开始添加');
                 sb.appendBuffer(temp_arr.shift());
+            } else {
+                console.log('sourcebuff还在忙碌');
             }
 
         }
