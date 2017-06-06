@@ -3,9 +3,20 @@ import tagdemux from './flv/tagdemux'
 import mp4remux from './mp4/mp4remux'
 import mp4moof from './mp4/mp4moof'
 class flv2fmp4 {
-    constructor() {
+
+    /**
+     * Creates an instance of flv2fmp4.
+     * config 里面有_isLive属性,是否是直播
+     * @param {any} config 
+     * 
+     * @memberof flv2fmp4
+     */
+    constructor(config) {
+        this._config = { _isLive: false };
+        this._config = Object.assign(this._config, config);
         this.onInitSegment = null;
         this.onMediaSegment = null;
+        this.omMediaInfo = null;
         this.loadmetadata = false;
         this.ftyp_moov = null;
         this.metaSuccRun = false;
@@ -13,9 +24,19 @@ class flv2fmp4 {
         tagdemux._onTrackMetadata = this.Metadata.bind(this);
         tagdemux._onMediaInfo = this.metaSucc.bind(this)
         tagdemux._onDataAvailable = this.onDataAvailable.bind(this);
-        this.m4mof = new mp4moof({ _isLive: false })
+        this.m4mof = new mp4moof(this._config)
         this.m4mof.onMediaSegment = this.onMdiaSegment.bind(this);
     }
+
+
+    /**
+     * moof回调
+     * 
+     * @param {any} track 
+     * @param {any} value 
+     * 
+     * @memberof flv2fmp4
+     */
     onMdiaSegment(track, value) {
 
         if (this.onMediaSegment) {
@@ -24,6 +45,16 @@ class flv2fmp4 {
 
 
     }
+
+
+    /**
+     * 音频和视频的初始化tag
+     * 
+     * @param {any} type 
+     * @param {any} meta 
+     * 
+     * @memberof flv2fmp4
+     */
     Metadata(type, meta) {
         switch (type) {
             case 'video':
@@ -41,7 +72,18 @@ class flv2fmp4 {
     }
 
 
-    metaSucc() {
+    /**
+     * metadata解读成功后触发及第一个视频tag和第一个音频tag
+     * 
+     * @param {any} mi 
+     * @returns 
+     * 
+     * @memberof flv2fmp4
+     */
+    metaSucc(mi) {
+        if (this.omMediaInfo) {
+            this.omMediaInfo(mi);
+        }
         //获取ftyp和moov
         if (this.metas.length == 0) {
             this.metaSuccRun = true;
