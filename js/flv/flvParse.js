@@ -87,8 +87,9 @@ class FlvParse {
         return this.offset;
     }
     read(length) {
-        let u8a = new Uint8Array(length);
-        u8a.set(this.tempUint8.subarray(this.index, this.index + length), 0);
+        // let u8a = new Uint8Array(length);
+        // u8a.set(this.tempUint8.subarray(this.index, this.index + length), 0);
+        let u8a = this.tempUint8.slice(this.index, this.index + length);
         this.index += length;
         return u8a;
     }
