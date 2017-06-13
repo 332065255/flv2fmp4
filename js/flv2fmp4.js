@@ -16,18 +16,66 @@ class flv2fmp4 {
         this._config = Object.assign(this._config, config);
         this.onInitSegment = null;
         this.onMediaSegment = null;
-        this.omMediaInfo = null;
+        this.onMediaInfo = null;
+        this.seekCallBack = null;
         this.loadmetadata = false;
         this.ftyp_moov = null;
         this.metaSuccRun = false;
         this.metas = [];
+        this.parseChunk = null;
+        this._pendingResolveSeekPoint = -1;
+        this._tempBaseTime = 0;
+
+
+
+        //处理flv数据入口
+        this.setflvBase = this.setflvBase1;
+
         tagdemux._onTrackMetadata = this.Metadata.bind(this);
         tagdemux._onMediaInfo = this.metaSucc.bind(this)
         tagdemux._onDataAvailable = this.onDataAvailable.bind(this);
         this.m4mof = new mp4moof(this._config)
         this.m4mof.onMediaSegment = this.onMdiaSegment.bind(this);
     }
+    seek() {
+        this.setflvBase = this.setflvBase1;
+    }
+    setflvBase1(arraybuff, baseTime) {
+        if (baseTime == undefined || baseTime == 0) {
+            baseTime = 0;
+            this._pendingResolveSeekPoint = -1;
+        }
+        if (this._tempBaseTime != baseTime) {
+            this._tempBaseTime = baseTime;
+            tagdemux._timestampBase = baseTime;
+            this.m4mof.seek(baseTime);
+            this.m4mof.insertDiscontinuity();
+            this._pendingResolveSeekPoint = baseTime;
+        }
 
+        let offset = flvparse.setFlv(new Uint8Array(arraybuff));
+
+        if (flvparse.arrTag.length > 0) {
+            if (this._tempBaseTime != 0 && this._tempBaseTime == flvparse.arrTag[0].getTime()) {
+                tagdemux._timestampBase = 0;
+            }
+            tagdemux.moofTag(flvparse.arrTag);
+            this.setflvBase = this.setflvBase2;
+        }
+
+        return offset;
+    }
+
+    setflvBase2(arraybuff, baseTime) {
+        let offset = flvparse.setFlv(new Uint8Array(arraybuff));
+
+
+        if (flvparse.arrTag.length > 0) {
+            tagdemux.moofTag(flvparse.arrTag);
+        }
+
+        return offset;
+    }
 
     /**
      * moof回调
@@ -42,8 +90,13 @@ class flv2fmp4 {
         if (this.onMediaSegment) {
             this.onMediaSegment(new Uint8Array(value.data));
         }
-
-
+        if (this._pendingResolveSeekPoint != -1 && track == 'video') {
+            let seekpoint = this._pendingResolveSeekPoint;
+            this._pendingResolveSeekPoint = -1;
+            if (this.seekCallBack) {
+                this.seekCallBack(seekpoint);
+            }
+        }
     }
 
 
@@ -81,8 +134,8 @@ class flv2fmp4 {
      * @memberof flv2fmp4
      */
     metaSucc(mi) {
-        if (this.omMediaInfo) {
-            this.omMediaInfo(mi);
+        if (this.onMediaInfo) {
+            this.onMediaInfo(mi);
         }
         //获取ftyp和moov
         if (this.metas.length == 0) {
@@ -102,22 +155,49 @@ class flv2fmp4 {
         this.m4mof.remux(audiotrack, videotrack);
     }
 
+
     /**
      * 传入flv的二进制数据
      * 
-     * @param {ArrayBuffer} arraybuff 
+     * @param {any} arraybuff 
+     * @param {any} baseTime flv数据开始时间
+     * @returns 
      * 
      * @memberof flv2fmp4
      */
-    setflv(arraybuff) {
+    setflv(arraybuff, baseTime) {
+        // if (baseTime == undefined || baseTime == 0) {
+        //     baseTime = 0;
+        //     this._pendingResolveSeekPoint = -1;
+        // }
+        // if (this._tempBaseTime != baseTime) {
+        //     this._tempBaseTime = baseTime;
+        //     tagdemux._timestampBase = baseTime;
+        //     this.m4mof.seek(baseTime);
+        //     this.m4mof.insertDiscontinuity();
+        //     this._pendingResolveSeekPoint = baseTime;
+        //     // this._remuxer.seek(milliseconds);
+        //     // this._remuxer.insertDiscontinuity();
+        // }
+
+        // let offset = flvparse.setFlv(new Uint8Array(arraybuff));
+
+
+        // if (flvparse.arrTag.length > 0) {
+        //     tagdemux.moofTag(flvparse.arrTag);
+        // }
+
+        // return offset;
+        return this.setflvBase(arraybuff, baseTime);
+    }
+
+    setflvloc(arraybuff) {
         let offset = flvparse.setFlv(new Uint8Array(arraybuff));
 
 
         if (flvparse.arrTag.length > 0) {
-            tagdemux.moofTag(flvparse.arrTag);
+            return flvparse.arrTag;
         }
-
-        return offset;
     }
 }
 export default flv2fmp4;

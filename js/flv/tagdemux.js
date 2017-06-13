@@ -183,6 +183,10 @@ class tagDemux {
     }
 
     _parseVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition) {
+        if (tagTimestamp == this._timestampBase && this._timestampBase != 0) {
+            console.log(tagTimestamp, this._timestampBase, '夭寿啦这个视频不是从0开始');
+            // this.timestampBase(0);
+        }
         if (dataSize <= 1) {
             Log.w(this.TAG, 'Flv: Invalid video packet, missing VideoData payload!');
             return;
@@ -203,6 +207,8 @@ class tagDemux {
     }
 
     _parseAVCVideoPacket(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType) {
+
+
         if (dataSize < 4) {
             Log.w(this.TAG, 'Flv: Invalid AVC packet, missing AVCPacketType or/and CompositionTime');
             return;
@@ -406,10 +412,16 @@ class tagDemux {
         this._onTrackMetadata('video', meta);
     }
 
+    timestampBase(i) {
+        this._timestampBase = i;
+    }
+
     /**
      * 普通的AVC 片段
      */
     _parseAVCVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, cts) {
+
+
         let le = this._littleEndian;
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
@@ -468,6 +480,11 @@ class tagDemux {
         }
     }
     _parseAudioData(arrayBuffer, dataOffset, dataSize, tagTimestamp) {
+        if (tagTimestamp == this._timestampBase && this._timestampBase != 0) {
+            console.log(tagTimestamp, this._timestampBase, '夭寿啦这个视频不是从0开始');
+            // timestampBase(0);
+        }
+
         if (dataSize <= 1) {
             Log.w(this.TAG, 'Flv: Invalid audio packet, missing SoundData payload!');
             return;

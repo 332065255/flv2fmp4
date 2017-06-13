@@ -93,6 +93,7 @@
             sb = mes.addSourceBuffer(mimecode);
             sb.addEventListener('updateend', () => {
                 doappendbuff();
+//              console.log(mes)
             });
         }
     </script>
@@ -120,7 +121,9 @@
         var temp_u8a = new Uint8Array();
         var headers = new window.Headers();
         var _requestAbort = false;
+        var video_url = '';
         btn_load.addEventListener("click", function() {
+            video_url = document.querySelector("#videosrc").value;
             req = new Request(document.querySelector("#videosrc").value, {
                 headers: headers,
                 method: 'GET',
@@ -136,7 +139,7 @@
             })
         })
         var temp_arr = []
-
+		var byte_time=0;
         function readr(reader) {
             return reader.read().then(function(result) {
 
@@ -147,19 +150,67 @@
                     return reader.cancel();
                 } else if (_requestAbort) {
                     _requestAbort = false;
+                    temp_arr=[];
+                    temp_u8a=new Uint8Array();
                     return reader.cancel();
                 }
                 let temp = new Uint8Array(temp_u8a.length + chunk.length);
                 temp.set(temp_u8a, 0);
                 temp.set(chunk, temp_u8a.length);
-                let offest = flvParse.setFlv(temp);
+                let offest = flvParse.setFlv(temp,byte_time);
                 temp_u8a = temp.slice(offest);
-                console.log('offest', offest, '数据长度', temp.length)
+//              console.log('offest', offest, '数据长度', temp.length)
                 return _this.readr(reader);
             })
         }
+		var byte_location=-1;
+		
+        function seek(time) {
+        		_requestAbort=true;
+            if (mediainfo) {
+                for(var i=0;i<mediainfo.keyframesIndex.times.length;i++){
+                		if(time*1000<mediainfo.keyframesIndex.times[i]){
+                			if(i==0)
+                			{
+                				byte_time=0.1;
+                				byte_location=mediainfo.keyframesIndex.filepositions[0];
+                			}else{
+                				byte_time=mediainfo.keyframesIndex.times[i-1]
+                				byte_location=mediainfo.keyframesIndex.filepositions[i-1];
+                				break;
+                			}
+                		}
+                }
+            }
+//          return;
+			
+//			flvParse.seek(byte_time);
+            req = new Request(video_url+"&start="+byte_location, {
+                headers: headers,
+                method: 'GET',
+                cache: 'default',
+                mode: "cors"
+            });
 
 
+            fetch(req).then(function(response) {
+                //  typeof(response.body)==ReadableStream
+                var reader = response.body.getReader();
+                return _this.readr(reader);
+            })
+
+        }
+
+        function seekCallBack(time) {
+//      		if(sb.buffered.length>0)
+//          console.log('回调时间', time,sb.buffered.start(sb.buffered.length-1));
+            video.currentTime=time/1000;
+        }
+        var mediainfo = null;
+
+        function onMediaInfo(mi) {
+            mediainfo = mi;
+        }
         dropbox.addEventListener("dragover", function(e) {
             e.stopPropagation();
             e.preventDefault();
@@ -187,20 +238,28 @@
             console.log('init', a);
             temp_arr.push(a.buffer);
             doappendbuff();
+            setTimeout(seek,200,106)
+//          seek(106);
+
         }
 
         function onMediaSegment(a) {
-            console.log('moof', a);
+//          console.log('moof', a);
             temp_arr.push(a.buffer);
             doappendbuff();
         }
 
         function doappendbuff() {
+        		
             if (!sb.updating && temp_arr.length > 0) {
                 console.log('开始添加');
                 sb.appendBuffer(temp_arr.shift());
+//              if(sb.buffered.length>0)
+//              console.log(sb.buffered.start(sb.buffered.length-1))
             } else {
                 console.log('sourcebuff还在忙碌');
+//              if(sb.buffered.length>0)
+//              console.log(sb.buffered.start(sb.buffered.length-1))
             }
 
         }

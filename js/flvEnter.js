@@ -11,19 +11,31 @@ window.flvParse = {
     succ: null,
     // ftyp_moov:null,
     tracks: [],
-
-    setFlv: function(uint8) {
-
+    baseTime: 0,
+    setFlv: function(uint8, baseTime) {
+        if (flvParse.baseTime != baseTime) {
+            flvParse.baseTime = baseTime;
+            temp.seek();
+        }
         if (window.mp4Init) {
             temp.onInitSegment = window.mp4Init
         }
         if (window.onMediaSegment) {
             temp.onMediaSegment = window.onMediaSegment
         }
-        return temp.setflv(uint8.buffer);
+        if (window.seekCallBack) {
+            temp.seekCallBack = window.seekCallBack
+        }
+        if (window.onMediaInfo) {
+            temp.onMediaInfo = window.onMediaInfo
+        }
+        return temp.setflv(uint8.buffer, baseTime);
 
 
         //用来获取moov
 
     },
+    setLocFlv: function(uin8) {
+        return temp.setflvloc(uin8);
+    }
 }
