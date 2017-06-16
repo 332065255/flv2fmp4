@@ -1,4 +1,3 @@
-/* eslint-disable */
 import flvparse from './flv/flvParse';
 import tagdemux from './flv/tagdemux';
 import mp4remux from './mp4/mp4remux';

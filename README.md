@@ -21,7 +21,7 @@ import f2m from './js/flv2fmp4.js'
 
 let kernel=new f2m({})
 
-kernel.serflv(这里放flv数据);
+kernel.setflv(这里放flv数据);
 剩下的看代码的注释吧 
 
 ```
