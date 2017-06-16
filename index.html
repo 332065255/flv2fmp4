@@ -120,6 +120,7 @@
         var temp_u8a = new Uint8Array();
         var headers = new window.Headers();
         var _requestAbort = false;
+        var init=false;
         btn_load.addEventListener("click", function() {
             req = new Request(document.querySelector("#videosrc").value, {
                 headers: headers,
@@ -185,13 +186,15 @@
 
         function mp4Init(a) {
             console.log('init', a);
-            temp_arr.push(a.buffer);
+            temp_arr.unshift(a.buffer);
             doappendbuff();
+            if(!init)init=true;
         }
 
         function onMediaSegment(a) {
             console.log('moof', a);
             temp_arr.push(a.buffer);
+            if(!init)return;
             doappendbuff();
         }
 

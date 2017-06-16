@@ -1,66 +1,50 @@
-import flvparse from './flv/flvParse'
-import tagdemux from './flv/tagdemux'
-import mp4remux from './mp4/mp4remux'
-import mp4moof from './mp4/mp4moof'
+/* eslint-disable */
+import flvparse from './flv/flvParse';
+import tagdemux from './flv/tagdemux';
+import mp4remux from './mp4/mp4remux';
+import mp4moof from './mp4/mp4moof';
 class flv2fmp4 {
 
     /**
      * Creates an instance of flv2fmp4.
      * config 里面有_isLive属性,是否是直播
-     * @param {any} config 
-     * 
+     * @param {any} config
+     *
      * @memberof flv2fmp4
      */
     constructor(config) {
         this._config = { _isLive: false };
         this._config = Object.assign(this._config, config);
 
-        //外部方法赋值
+        // 外部方法赋值
         this.onInitSegment = null;
         this.onMediaSegment = null;
         this.onMediaInfo = null;
         this.seekCallBack = null;
 
-
-        //内部使用
+        // 内部使用
         this.loadmetadata = false;
         this.ftyp_moov = null;
         this.metaSuccRun = false;
         this.metas = [];
         this.parseChunk = null;
-        //临时记录seek时间
+        // 临时记录seek时间
         this._pendingResolveSeekPoint = -1;
 
-        //临时记录flv数据起始时间
+        // 临时记录flv数据起始时间
         this._tempBaseTime = 0;
 
-
-
-        //处理flv数据入口
+        // 处理flv数据入口
         this.setflvBase = this.setflvBasefrist;
 
         tagdemux._onTrackMetadata = this.Metadata.bind(this);
-        tagdemux._onMediaInfo = this.metaSucc.bind(this)
+        tagdemux._onMediaInfo = this.metaSucc.bind(this);
         tagdemux._onDataAvailable = this.onDataAvailable.bind(this);
-        this.m4mof = new mp4moof(this._config)
+        this.m4mof = new mp4moof(this._config);
         this.m4mof.onMediaSegment = this.onMdiaSegment.bind(this);
     }
-    seek() {
+    seek(baseTime) {
         this.setflvBase = this.setflvBasefrist;
-    }
-
-
-    /**
-     * 不要主动调用这个接口!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     * 第一次接受数据,和seek时候接受数据入口,
-     * 
-     * @param {any} arraybuff 
-     * @param {any} baseTime 
-     * @returns 
-     * 
-     * @memberof flv2fmp4
-     */
-    setflvBasefrist(arraybuff, baseTime) {
         if (baseTime == undefined || baseTime == 0) {
             baseTime = 0;
             this._pendingResolveSeekPoint = -1;
@@ -72,6 +56,19 @@ class flv2fmp4 {
             this.m4mof.insertDiscontinuity();
             this._pendingResolveSeekPoint = baseTime;
         }
+    }
+
+    /**
+     * 不要主动调用这个接口!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+     * 第一次接受数据,和seek时候接受数据入口,
+     *
+     * @param {any} arraybuff
+     * @param {any} baseTime
+     * @returns
+     *
+     * @memberof flv2fmp4
+     */
+    setflvBasefrist(arraybuff, baseTime) {
 
         let offset = flvparse.setFlv(new Uint8Array(arraybuff));
 
@@ -86,19 +83,17 @@ class flv2fmp4 {
         return offset;
     }
 
-
     /**
      * 不要主动调用这个接口!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      * 后续接受数据接口
-     * @param {any} arraybuff 
-     * @param {any} baseTime 
-     * @returns 
-     * 
+     * @param {any} arraybuff
+     * @param {any} baseTime
+     * @returns
+     *
      * @memberof flv2fmp4
      */
     setflvBaseUsually(arraybuff, baseTime) {
-        let offset = flvparse.setFlv(new Uint8Array(arraybuff));
-
+        const offset = flvparse.setFlv(new Uint8Array(arraybuff));
 
         if (flvparse.arrTag.length > 0) {
             tagdemux.moofTag(flvparse.arrTag);
@@ -110,10 +105,10 @@ class flv2fmp4 {
     /**
      * 不要主动调用这个接口!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      * moof回调
-     * 
-     * @param {any} track 
-     * @param {any} value 
-     * 
+     *
+     * @param {any} track
+     * @param {any} value
+     *
      * @memberof flv2fmp4
      */
     onMdiaSegment(track, value) {
@@ -130,14 +125,13 @@ class flv2fmp4 {
         }
     }
 
-
     /**
-     * 
+     *
      * 音频和视频的初始化tag
-     * 
-     * @param {any} type 
-     * @param {any} meta 
-     * 
+     *
+     * @param {any} type
+     * @param {any} meta
+     *
      * @memberof flv2fmp4
      */
     Metadata(type, meta) {
@@ -156,20 +150,19 @@ class flv2fmp4 {
         }
     }
 
-
     /**
      * metadata解读成功后触发及第一个视频tag和第一个音频tag
-     * 
-     * @param {any} mi 
-     * @returns 
-     * 
+     *
+     * @param {any} mi
+     * @returns
+     *
      * @memberof flv2fmp4
      */
     metaSucc(mi) {
         if (this.onMediaInfo) {
             this.onMediaInfo(mi);
         }
-        //获取ftyp和moov
+        // 获取ftyp和moov
         if (this.metas.length == 0) {
             this.metaSuccRun = true;
             return;
@@ -187,32 +180,29 @@ class flv2fmp4 {
         this.m4mof.remux(audiotrack, videotrack);
     }
 
-
     /**
      * 传入flv的二进制数据
      * 统一入口
-     * @param {any} arraybuff 
+     * @param {any} arraybuff
      * @param {any} baseTime flv数据开始时间
-     * @returns 
-     * 
+     * @returns
+     *
      * @memberof flv2fmp4
      */
     setflv(arraybuff, baseTime) {
         return this.setflvBase(arraybuff, baseTime);
     }
 
-
     /**
-     * 
+     *
      * 本地调试代码,不用理会
-     * @param {any} arraybuff 
-     * @returns 
-     * 
+     * @param {any} arraybuff
+     * @returns
+     *
      * @memberof flv2fmp4
      */
     setflvloc(arraybuff) {
-        let offset = flvparse.setFlv(new Uint8Array(arraybuff));
-
+        const offset = flvparse.setFlv(new Uint8Array(arraybuff));
 
         if (flvparse.arrTag.length > 0) {
             return flvparse.arrTag;
@@ -220,65 +210,61 @@ class flv2fmp4 {
     }
 }
 
-
-
 /**
  * 封装的对外类,有些方法不想对外暴露,所以封装这么一个类
- * 
+ *
  * @class foreign
  */
 class foreign {
     constructor(config) {
 
         this.f2m = new flv2fmp4(config);
-        //外部方法赋值
+        // 外部方法赋值
         this._onInitSegment = null;
         this._onMediaSegment = null;
         this._onMediaInfo = null;
         this._seekCallBack = null;
     }
 
-
     /**
-     * 
+     *
      * 跳转
-     * 
+     * @param {any} basetime  跳转时间
+     *
      * @memberof foreign
      */
-    seek() {
-        this.f2m.seek();
+    seek(basetime) {
+        this.f2m.seek(basetime);
     }
 
     /**
      * 传入flv的二进制数据
      * 统一入口
-     * @param {any} arraybuff 
-     * @param {any} baseTime flv数据开始时间
-     * @returns 
-     * 
+     * @param {any} arraybuff
+     * @returns
+     *
      * @memberof flv2fmp4
      */
-    setflv(arraybuff, baseTime) {
-        return this.f2m.setflv(arraybuff, baseTime);
+    setflv(arraybuff) {
+        return this.f2m.setflv(arraybuff, 0);
     }
 
     /**
-     * 
+     *
      * 本地调试代码,不用理会
-     * @param {any} arraybuff 
-     * @returns 
-     * 
+     * @param {any} arraybuff
+     * @returns
+     *
      * @memberof flv2fmp4
      */
     setflvloc(arraybuff) {
         return this.f2m.setflvloc(arraybuff);
     }
 
-
     /**
      * 赋值初始化seg接受方法
-     * 
-     * 
+     *
+     *
      * @memberof foreign
      */
     set onInitSegment(fun) {
@@ -288,8 +274,8 @@ class foreign {
 
     /**
      * 赋值moof接受方法
-     * 
-     * 
+     *
+     *
      * @memberof foreign
      */
     set onMediaSegment(fun) {
@@ -299,8 +285,8 @@ class foreign {
 
     /**
      * 赋值metadata接受方法
-     * 
-     * 
+     *
+     *
      * @memberof foreign
      */
     set onMediaInfo(fun) {
@@ -310,8 +296,8 @@ class foreign {
 
     /**
      * 赋值是否跳转回调接受方法
-     * 
-     * 
+     *
+     *
      * @memberof foreign
      */
     set seekCallBack(fun) {

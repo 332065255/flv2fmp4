@@ -1,3 +1,4 @@
+/* eslint-disable */
 export default class FlvTag {
     constructor() {
         this.tagType = -1;
@@ -12,10 +13,10 @@ export default class FlvTag {
         // this.Timestamp.pop();
         this.arr = [];
         for (let i = 0; i < this.Timestamp.length; i++) {
-            this.arr.push((this.Timestamp[i].toString(16).length == 1 ? "0" + this.Timestamp[i].toString(16) : this.Timestamp[i].toString(16)))
+            this.arr.push((this.Timestamp[i].toString(16).length == 1 ? '0' + this.Timestamp[i].toString(16) : this.Timestamp[i].toString(16)));
         }
         this.arr.pop();
-        let time = this.arr.join('');
+        const time = this.arr.join('');
         this.time = parseInt(time, 16);
         return parseInt(time, 16);
     }

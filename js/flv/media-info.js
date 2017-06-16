@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+/* eslint-disable */
 class MediaInfo {
 
     constructor() {
@@ -42,38 +42,38 @@ class MediaInfo {
         this.sarDen = null;
 
         this.metadata = null;
-        this.segments = null;  // MediaInfo[]
+        this.segments = null; // MediaInfo[]
         this.segmentCount = null;
         this.hasKeyframesIndex = null;
         this.keyframesIndex = null;
     }
 
     isComplete() {
-        let audioInfoComplete = (this.hasAudio === false) ||
-                                (this.hasAudio === true &&
-                                 this.audioCodec != null &&
-                                 this.audioSampleRate != null &&
-                                 this.audioChannelCount != null);
+        const audioInfoComplete = (this.hasAudio === false) ||
+            (this.hasAudio === true &&
+                this.audioCodec != null &&
+                this.audioSampleRate != null &&
+                this.audioChannelCount != null);
 
-        let videoInfoComplete = (this.hasVideo === false) ||
-                                (this.hasVideo === true &&
-                                 this.videoCodec != null &&
-                                 this.width != null &&
-                                 this.height != null &&
-                                 this.fps != null &&
-                                 this.profile != null &&
-                                 this.level != null &&
-                                 this.chromaFormat != null &&
-                                 this.sarNum != null &&
-                                 this.sarDen != null);
+        const videoInfoComplete = (this.hasVideo === false) ||
+            (this.hasVideo === true &&
+                this.videoCodec != null &&
+                this.width != null &&
+                this.height != null &&
+                this.fps != null &&
+                this.profile != null &&
+                this.level != null &&
+                this.chromaFormat != null &&
+                this.sarNum != null &&
+                this.sarDen != null);
 
         // keyframesIndex may not be present
         return this.mimeType != null &&
-               this.duration != null &&
-               this.metadata != null &&
-               this.hasKeyframesIndex != null &&
-               audioInfoComplete &&
-               videoInfoComplete;
+            this.duration != null &&
+            this.metadata != null &&
+            this.hasKeyframesIndex != null &&
+            audioInfoComplete &&
+            videoInfoComplete;
     }
 
     isSeekable() {
@@ -85,8 +85,8 @@ class MediaInfo {
             return null;
         }
 
-        let table = this.keyframesIndex;
-        let keyframeIdx = this._search(table.times, milliseconds);
+        const table = this.keyframesIndex;
+        const keyframeIdx = this._search(table.times, milliseconds);
 
         return {
             index: keyframeIdx,
@@ -98,14 +98,14 @@ class MediaInfo {
     _search(list, value) {
         let idx = 0;
 
-        let last = list.length - 1;
+        const last = list.length - 1;
         let mid = 0;
         let lbound = 0;
         let ubound = last;
 
         if (value < list[0]) {
             idx = 0;
-            lbound = ubound + 1;  // skip search
+            lbound = ubound + 1; // skip search
         }
 
         while (lbound <= ubound) {

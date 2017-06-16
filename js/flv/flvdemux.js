@@ -1,7 +1,8 @@
+/* eslint-disable */
 import decodeUTF8 from '../decodeUTF8';
-import SPSParser from './sps-parser'
-let le = (function() {
-    let buf = new ArrayBuffer(2);
+import SPSParser from './sps-parser';
+const le = (function() {
+    const buf = new ArrayBuffer(2);
     (new DataView(buf)).setInt16(0, 256, true); // little-endian write
     return (new Int16Array(buf))[0] === 256; // platform-spec read, if equal then LE
 })();
@@ -12,9 +13,9 @@ export default class flvDemux {
     }
     static parseObject(arrayBuffer, dataOffset, dataSize) {
 
-        let name = flvDemux.parseString(arrayBuffer, dataOffset, dataSize);
-        let value = flvDemux.parseScript(arrayBuffer, dataOffset + name.size);
-        let isObjectEnd = value.objectEnd;
+        const name = flvDemux.parseString(arrayBuffer, dataOffset, dataSize);
+        const value = flvDemux.parseScript(arrayBuffer, dataOffset + name.size);
+        const isObjectEnd = value.objectEnd;
 
         return {
             data: {
@@ -33,8 +34,8 @@ export default class flvDemux {
         if (dataSize < 4) {
             throw new IllegalStateException('Data not enough when parse LongString');
         }
-        let v = new DataView(arrayBuffer, dataOffset);
-        let length = v.getUint32(0, !le);
+        const v = new DataView(arrayBuffer, dataOffset);
+        const length = v.getUint32(0, !le);
 
         let str;
         if (length > 0) {
@@ -52,9 +53,9 @@ export default class flvDemux {
         if (dataSize < 10) {
             throw new IllegalStateException('Data size invalid when parse Date');
         }
-        let v = new DataView(arrayBuffer, dataOffset);
+        const v = new DataView(arrayBuffer, dataOffset);
         let timestamp = v.getFloat64(0, !le);
-        let localTimeOffset = v.getInt16(8, !le);
+        const localTimeOffset = v.getInt16(8, !le);
         timestamp += localTimeOffset * 60 * 1000; // get UTC time
 
         return {
@@ -63,8 +64,8 @@ export default class flvDemux {
         };
     }
     static parseString(arrayBuffer, dataOffset, dataSize) {
-        let v = new DataView(arrayBuffer, dataOffset);
-        let length = v.getUint16(0, !le);
+        const v = new DataView(arrayBuffer, dataOffset);
+        const length = v.getUint16(0, !le);
         let str;
         if (length > 0) {
             str = decodeUTF8(new Uint8Array(arrayBuffer, dataOffset + 2, length));
@@ -81,26 +82,23 @@ export default class flvDemux {
      * 解析metadata
      */
     static parseMetadata(arr) {
-        let name = flvDemux.parseScript(arr, 0);
-        let value = flvDemux.parseScript(arr, name.size, arr.length - name.size);
+        const name = flvDemux.parseScript(arr, 0);
+        const value = flvDemux.parseScript(arr, name.size, arr.length - name.size);
         // return {}
-        let data = {};
+        const data = {};
         data[name.data] = value.data;
         return data;
     }
 
-
-
-
     static parseScript(arr, offset, dataSize) {
         let dataOffset = offset;
-        let object = {};
-        let uint8 = new Uint8Array(arr);
-        let buffer = uint8.buffer;
-        let dv = new DataView(buffer, 0, dataSize);
+        const object = {};
+        const uint8 = new Uint8Array(arr);
+        const buffer = uint8.buffer;
+        const dv = new DataView(buffer, 0, dataSize);
         let value = null;
         let objectEnd = false;
-        let type = (dv.getUint8(dataOffset));
+        const type = (dv.getUint8(dataOffset));
         dataOffset += 1;
         switch (type) {
             case 0: // Number(Double) type
@@ -109,15 +107,15 @@ export default class flvDemux {
                 break;
             case 1:
                 { // Boolean type
-                    let b = dv.getUint8(dataOffset);
-                    value = b ? true : false;
+                    const b = dv.getUint8(dataOffset);
+                    value = !!b;
                     dataOffset += 1;
                     break;
                 }
             case 2:
                 { // String type
                     // dataOffset += 1;
-                    let amfstr = flvDemux.parseString(buffer, dataOffset);
+                    const amfstr = flvDemux.parseString(buffer, dataOffset);
                     value = amfstr.data;
                     dataOffset += amfstr.size;
                     break;
@@ -130,21 +128,37 @@ export default class flvDemux {
                     if ((dv.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
                         terminal = 3;
                     }
-                    while (offset < dataSize - 4) { // 4 === type(UI8) + ScriptDataObjectEnd(UI24)
-                        let amfobj = flvDemux.parseObject(buffer, dataOffset, dataSize - offset - terminal);
+                    // while (offset < dataSize - 4) { // 4 === type(UI8) + ScriptDataObjectEnd(UI24)
+                    //     const amfobj = flvDemux.parseObject(buffer, dataOffset, dataSize - offset - terminal);
 
-                        if (amfobj.objectEnd)
-                            break;
+                    //     if (amfobj.objectEnd) { break; }
+                    //     value[amfobj.data.name] = amfobj.data.value;
+                    //     // dataOffset += amfobj.size;
+                    //     dataOffset = amfobj.size;
+                    // }
+                    // if (offset <= dataSize - 3) {
+                    //     const marker = v.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;
+                    //     if (marker === 9) {
+                    //         dataOffset += 3;
+                    //     }
+                    // }
+
+
+                    while (dataOffset < dataSize - 4) { // 4 === type(UI8) + ScriptDataObjectEnd(UI24)
+                        const amfobj = flvDemux.parseObject(buffer, dataOffset, dataSize - offset - terminal);
+
+                        if (amfobj.objectEnd) { break; }
                         value[amfobj.data.name] = amfobj.data.value;
                         // dataOffset += amfobj.size;
                         dataOffset = amfobj.size;
                     }
-                    if (offset <= dataSize - 3) {
-                        let marker = v.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;
+                    if (dataOffset <= dataSize - 3) {
+                        const marker = v.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;
                         if (marker === 9) {
                             dataOffset += 3;
                         }
                     }
+
                     break;
                 }
             case 8:
@@ -157,15 +171,14 @@ export default class flvDemux {
                         terminal = 3;
                     }
                     while (dataOffset < dataSize - 8) { // 8 === type(UI8) + ECMAArrayLength(UI32) + ScriptDataVariableEnd(UI24)
-                        let amfvar = flvDemux.parseVariable(buffer, dataOffset);
+                        const amfvar = flvDemux.parseVariable(buffer, dataOffset);
 
-                        if (amfvar.objectEnd)
-                            break;
+                        if (amfvar.objectEnd) { break; }
                         value[amfvar.data.name] = amfvar.data.value;
                         dataOffset = amfvar.size;
                     }
                     if (dataOffset <= dataSize - 3) {
-                        let marker = dv.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;
+                        const marker = dv.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;
                         if (marker === 9) {
                             dataOffset += 3;
                         }
@@ -181,10 +194,10 @@ export default class flvDemux {
                 { // Strict array type
                     // ScriptDataValue[n]. NOTE: according to video_file_format_spec_v10_1.pdf
                     value = [];
-                    let strictArrayLength = dv.getUint32(dataOffset, !le);
+                    const strictArrayLength = dv.getUint32(dataOffset, !le);
                     dataOffset += 4;
                     for (let i = 0; i < strictArrayLength; i++) {
-                        let val = flvDemux.parseScript(buffer, dataOffset);
+                        const val = flvDemux.parseScript(buffer, dataOffset);
                         value.push(val.data);
                         dataOffset = val.size;
                     }
@@ -192,14 +205,14 @@ export default class flvDemux {
                 }
             case 11:
                 { // Date type
-                    let date = flvDemux.parseDate(buffer, dataOffset + 1, dataSize - 1);
+                    const date = flvDemux.parseDate(buffer, dataOffset + 1, dataSize - 1);
                     value = date.data;
                     dataOffset += date.size;
                     break;
                 }
             case 12:
                 { // Long string type
-                    let amfLongStr = flvDemux.parseString(buffer, dataOffset + 1, dataSize - 1);
+                    const amfLongStr = flvDemux.parseString(buffer, dataOffset + 1, dataSize - 1);
                     value = amfLongStr.data;
                     dataOffset += amfLongStr.size;
                     break;
