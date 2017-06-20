@@ -100,6 +100,7 @@ export default class flvDemux {
         let objectEnd = false;
         const type = (dv.getUint8(dataOffset));
         dataOffset += 1;
+
         switch (type) {
             case 0: // Number(Double) type
                 value = dv.getFloat64(dataOffset, !le);
@@ -128,23 +129,7 @@ export default class flvDemux {
                     if ((dv.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
                         terminal = 3;
                     }
-                    // while (offset < dataSize - 4) { // 4 === type(UI8) + ScriptDataObjectEnd(UI24)
-                    //     const amfobj = flvDemux.parseObject(buffer, dataOffset, dataSize - offset - terminal);
-
-                    //     if (amfobj.objectEnd) { break; }
-                    //     value[amfobj.data.name] = amfobj.data.value;
-                    //     // dataOffset += amfobj.size;
-                    //     dataOffset = amfobj.size;
-                    // }
-                    // if (offset <= dataSize - 3) {
-                    //     const marker = v.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;
-                    //     if (marker === 9) {
-                    //         dataOffset += 3;
-                    //     }
-                    // }
-
-
-                    while (dataOffset < dataSize - 4) { // 4 === type(UI8) + ScriptDataObjectEnd(UI24)
+                    while (offset < dataSize - 4) { // 4 === type(UI8) + ScriptDataObjectEnd(UI24)
                         const amfobj = flvDemux.parseObject(buffer, dataOffset, dataSize - offset - terminal);
 
                         if (amfobj.objectEnd) { break; }
@@ -152,13 +137,12 @@ export default class flvDemux {
                         // dataOffset += amfobj.size;
                         dataOffset = amfobj.size;
                     }
-                    if (dataOffset <= dataSize - 3) {
+                    if (offset <= dataSize - 3) {
                         const marker = v.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;
                         if (marker === 9) {
                             dataOffset += 3;
                         }
                     }
-
                     break;
                 }
             case 8:

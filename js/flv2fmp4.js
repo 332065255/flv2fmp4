@@ -1,3 +1,4 @@
+/* eslint-disable */
 import flvparse from './flv/flvParse';
 import tagdemux from './flv/tagdemux';
 import mp4remux from './mp4/mp4remux';
@@ -27,6 +28,8 @@ class flv2fmp4 {
         this.metaSuccRun = false;
         this.metas = [];
         this.parseChunk = null;
+        this.hasVideo = false;
+        this.hasAudio = false;
         // 临时记录seek时间
         this._pendingResolveSeekPoint = -1;
 
@@ -72,6 +75,8 @@ class flv2fmp4 {
         let offset = flvparse.setFlv(new Uint8Array(arraybuff));
 
         if (flvparse.arrTag.length > 0) {
+            this.hasAudio = flvparse._hasAudio;
+            this.hasVideo = flvparse._hasVideo;
             if (this._tempBaseTime != 0 && this._tempBaseTime == flvparse.arrTag[0].getTime()) {
                 tagdemux._timestampBase = 0;
             }
@@ -138,13 +143,21 @@ class flv2fmp4 {
             case 'video':
                 this.metas.push(meta);
                 this.m4mof._videoMeta = meta;
+                if (this.hasVideo && !this.hasAudio) {
+                    this.metaSucc();
+                    return;
+                }
                 break;
             case 'audio':
                 this.metas.push(meta);
                 this.m4mof._audioMeta = meta;
+                if (!this.hasVideo && this.hasAudio) {
+                    this.metaSucc();
+                    return;
+                }
                 break;
         }
-        if (this.metaSuccRun && this.metas.length > 1) {
+        if (this.hasVideo && this.hasAudio && this.metaSuccRun && this.metas.length > 1) {
             this.metaSucc();
         }
     }
@@ -159,7 +172,7 @@ class flv2fmp4 {
      */
     metaSucc(mi) {
         if (this.onMediaInfo) {
-            this.onMediaInfo(mi);
+            this.onMediaInfo(mi, { hasAudio: this.hasAudio, hasVideo: this.hasVideo });
         }
         // 获取ftyp和moov
         if (this.metas.length == 0) {

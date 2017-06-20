@@ -84,17 +84,11 @@
         }
     </style>
     <script>
-        let mimecode = 'video/mp4; codecs="avc1.640020,mp4a.40.2"';
+    		let vcode='avc1.640020';
+    		let acode='mp4a.40.2'
+        var mimecode = 'video/mp4; codecs=';
         let sb = null;
-        let mes = new MediaSource;
-        mes.addEventListener('sourceopen', sourceOpen);
-
-        function sourceOpen() {
-            sb = mes.addSourceBuffer(mimecode);
-            sb.addEventListener('updateend', () => {
-                doappendbuff();
-            });
-        }
+        var mes = null;
     </script>
 </head>
 
@@ -113,7 +107,7 @@
     <script>
     		console.log(flvParse);
         var video = document.querySelector('video');
-        video.src = URL.createObjectURL(mes);
+        
         var _this = this;
         var req = null;
         var dropbox = document.querySelector('body #con div');
@@ -184,8 +178,30 @@
             // flv2mp4.onInitSegment = onInitSegment.bind(_this);
             // flv2mp4.onMediaSegment = onMediaSegment.bind(_this);
         }
-
-        function mp4Init(a) {
+		function onMediaInfo(a,b){
+			if(mes==null){
+	        		mes=	new MediaSource;
+		        mes.addEventListener('sourceopen', sourceOpen);
+				if(b.hasVideo&&b.hasAudio){
+					mimecode+='"'+vcode+','+acode+'"'
+				}
+				if(b.hasVideo&&!b.hasAudio){
+					mimecode+='"'+vcode+'"'
+				}
+				if(!b.hasVideo&&b.hasAudio){
+					mimecode+='"'+acode+'"'
+				}
+		        function sourceOpen() {
+		            sb = mes.addSourceBuffer(mimecode);
+		            sb.addEventListener('updateend', () => {
+		                doappendbuff();
+		            });
+		        }
+		        video.src = URL.createObjectURL(mes);
+        		}
+		}
+        function mp4Init(a,b) {
+        		
             console.log('init', a);
             temp_arr.unshift(a.buffer);
             doappendbuff();
@@ -200,7 +216,7 @@
         }
 
         function doappendbuff() {
-            if (!sb.updating && temp_arr.length > 0) {
+            if (sb&&!sb.updating && temp_arr.length > 0) {
                 console.log('开始添加');
                 sb.appendBuffer(temp_arr.shift());
             } else {

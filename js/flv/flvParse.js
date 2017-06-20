@@ -10,6 +10,8 @@ class FlvParse {
         this.stop = false;
         this.offset = 0;
         this.frist = true;
+        this._hasAudio = false;
+        this._hasVideo = false;
     }
 
     /**
@@ -47,8 +49,8 @@ class FlvParse {
         if (!hasAudio && !hasVideo) {
             return mismatch;
         }
-        tagdemux._hasAudio = hasAudio;
-        tagdemux._hasVideo = hasVideo;
+        this._hasAudio = tagdemux._hasAudio = hasAudio;
+        this._hasVideo = tagdemux._hasVideo = hasVideo;
         return {
             match: true,
             hasAudioTrack: hasAudio,
@@ -76,7 +78,15 @@ class FlvParse {
             }
             if (this.tempUint8.length - this.index >= (this.getBodySum(t.dataSize) + 4)) {
                 t.body = this.read(this.getBodySum(t.dataSize)); // 取出body
-                this.arrTag.push(t);
+                if (t.tagType == 9 && this._hasVideo) {
+                    this.arrTag.push(t);
+                }
+                if (t.tagType == 8 && this._hasAudio) {
+                    this.arrTag.push(t);
+                }
+                if (t.tagType == 18 ) {
+                    this.arrTag.push(t);
+                }
                 this.read(4);
             } else {
                 this.stop = true;
