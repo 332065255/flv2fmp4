@@ -31,9 +31,7 @@ export default class flvDemux {
         return flvDemux.parseObject(arrayBuffer, dataOffset, dataSize);
     }
     static parseLongString(arrayBuffer, dataOffset, dataSize) {
-        if (dataSize < 4) {
-            throw new IllegalStateException('Data not enough when parse LongString');
-        }
+
         const v = new DataView(arrayBuffer, dataOffset);
         const length = v.getUint32(0, !le);
 
@@ -50,9 +48,7 @@ export default class flvDemux {
         };
     }
     static parseDate(arrayBuffer, dataOffset, dataSize) {
-        if (dataSize < 10) {
-            throw new IllegalStateException('Data size invalid when parse Date');
-        }
+
         const v = new DataView(arrayBuffer, dataOffset);
         let timestamp = v.getFloat64(0, !le);
         const localTimeOffset = v.getInt16(8, !le);

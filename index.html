@@ -196,6 +196,12 @@
 		            sb.addEventListener('updateend', () => {
 		                doappendbuff();
 		            });
+		            sb.addEventListener('error', (e) => {
+		                console.log(e)
+		            });
+		            if(temp_arr.length>0){
+		            	doappendbuff();
+		            }
 		        }
 		        video.src = URL.createObjectURL(mes);
         		}
@@ -221,6 +227,9 @@
                 sb.appendBuffer(temp_arr.shift());
             } else {
                 console.log('sourcebuff还在忙碌');
+            }
+            if(!sb){
+            	 console.log('sb还没准备好');
             }
 
         }
