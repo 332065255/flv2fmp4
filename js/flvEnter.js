@@ -1,12 +1,10 @@
 /* eslint-disable */
-import flvparse from './flv/flvParse';
-import tagdemux from './flv/tagdemux';
-import mp4remux from './mp4/mp4remux';
-import mp4moof from './mp4/mp4moof';
-import f2m from './flv2fmp4';
 
-const temp = new f2m();
+// import CPU from 'chimee-flv2fmp4';
+var cpu=require('chimee-flv2fmp4')
 
+const temp = new cpu();
+console.log(temp);
 window.flvParse = {
     mp4File: null,
     succ: null,
