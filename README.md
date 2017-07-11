@@ -26,4 +26,14 @@ let kernel=new f2m({})
 kernel.setflv(这里放flv数据);
 剩下的看代码的注释吧 
 
+
+
+抽离出了npm包
+
+
+npm install chimee-flv2fmp4 -S
+
+var cpu= require("chimee-flv2fmp4")
+
+new cpu();
 ```

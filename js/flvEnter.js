@@ -1,7 +1,7 @@
 /* eslint-disable */
 
-// import CPU from 'chimee-flv2fmp4';
-var cpu=require('chimee-flv2fmp4')
+import cpu from './flv2fmp4';
+// var cpu=require('chimee-flv2fmp4')
 
 const temp = new cpu();
 console.log(temp);

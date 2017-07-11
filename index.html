@@ -210,6 +210,11 @@
         		
             console.log('init', a);
             temp_arr.unshift(a.buffer);
+            // console.log("moov"+URL.createObjectURL(new Blob([a.buffer])));
+            var hrefa=document.createElement('a');
+            hrefa.href=URL.createObjectURL(new Blob([a.buffer]));
+            hrefa.innerHTML='moov下载';
+            document.body.appendChild(hrefa);
             doappendbuff();
             if(!init)init=true;
         }
