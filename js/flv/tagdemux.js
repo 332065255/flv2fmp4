@@ -199,7 +199,8 @@ class tagDemux {
         const codecId = spec & 15;
 
         if (codecId !== 7) {
-            this._onError(DemuxErrors.CODEC_UNSUPPORTED, `Flv: Unsupported codec in video frame: ${codecId}`);
+            if(this._onError)
+            this._onError(`Flv: Unsupported codec in video frame: ${codecId}`);
             return;
         }
 

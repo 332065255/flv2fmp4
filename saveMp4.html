@@ -36,13 +36,14 @@
         }
         
         #con #drop {
-            width: 50%;
+            width: 100%;
             float: left;
         }
         
         #con video {
             width: 50%;
             height: 100%;
+            display: none;
             float: left;
         }
         
@@ -224,12 +225,12 @@
             console.log('init', a);
             temp_arr.unshift(a.buffer);
             // console.log("moov"+URL.createObjectURL(new Blob([a.buffer])));
-//          var hrefa=document.createElement('a');
-//          hrefa.href=URL.createObjectURL(new Blob([a.buffer]));
-//          hrefa.innerHTML='moov下载';
-//          hrefa.style.display='block';
-//          document.body.appendChild(hrefa);
-            doappendbuff();
+            var hrefa=document.createElement('a');
+            hrefa.href=URL.createObjectURL(new Blob([a.buffer]));
+            hrefa.innerHTML='moov下载';
+            hrefa.style.display='block';
+            document.getElementById("input").appendChild(hrefa);
+            
             if(!init)init=true;
         }
 		function outMp4(){
@@ -237,33 +238,32 @@
 			hrefa.style.display='block';
             hrefa.href=URL.createObjectURL(new Blob([resultU8t.buffer]));
             hrefa.innerHTML='mp4下载';
-            document.body.appendChild(hrefa);
+            document.getElementById("input").appendChild(hrefa);
 		}
         function onMediaSegment(a) {
             console.log('moof', a);
-//          var temp=new Uint8Array(resultU8t.length+a.length);
-//          temp.set(resultU8t,0);
-//          temp.set(a,resultU8t.length);
-//          
-//          resultU8t=new Uint8Array(temp.length);
-//          resultU8t.set(temp,0);
+            var temp=new Uint8Array(resultU8t.length+a.length);
+            temp.set(resultU8t,0);
+            temp.set(a,resultU8t.length);
             
-//          end();
+            resultU8t=new Uint8Array(temp.length);
+            resultU8t.set(temp,0);
+            
+            end();
             temp_arr.push(a.buffer);
-            if(!init)return;
-            doappendbuff();
+            
         }
 
         function doappendbuff() {
-            if (sb&&!sb.updating && temp_arr.length > 0) {
-                console.log('开始添加');
-                sb.appendBuffer(temp_arr.shift());
-            } else {
-                console.log('sourcebuff还在忙碌');
-            }
-            if(!sb){
-            	 console.log('sb还没准备好');
-            }
+//          if (sb&&!sb.updating && temp_arr.length > 0) {
+//              console.log('开始添加');
+//              sb.appendBuffer(temp_arr.shift());
+//          } else {
+//              console.log('sourcebuff还在忙碌');
+//          }
+//          if(!sb){
+//          	 console.log('sb还没准备好');
+//          }
 
         }
         var end=debounce(outMp4,2000);
