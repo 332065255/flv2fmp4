@@ -5,6 +5,7 @@
 借鉴了flv.js的代码
 
 精简版的flv转fmp4工程,没有任何mse,io方面操作,只有flv转fmp4,可以当做核心解码使用,自己实现io,mse操作
+支持点播,直播,拖拽操作
 http://blog.csdn.net/g332065255/article/details/71158863
 ```
 
