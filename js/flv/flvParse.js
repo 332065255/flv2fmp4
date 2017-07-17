@@ -85,9 +85,13 @@ class FlvParse {
                     this.arrTag.push(t);
                 }
                 if (t.tagType == 18 ) {
+                    if(this.arrTag.length==0)
                     this.arrTag.push(t);
+                    else{
+                        console.log('这是截获的自定义数据',t);
+                    }
                 }
-                this.read(4);
+                t.size=this.read(4);
             } else {
                 this.stop = true;
                 continue;

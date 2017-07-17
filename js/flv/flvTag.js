@@ -8,6 +8,7 @@ export default class FlvTag {
         this.body = -1;
         this.time = -1;
         this.arr = [];
+        this.size=-1;
     }
     getTime() {
         // this.Timestamp.pop();
