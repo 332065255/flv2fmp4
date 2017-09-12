@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title></title>
+    <title>直接播放flv</title>
     <style>
         * {
             padding: 0px;
@@ -84,10 +84,10 @@
         }
     </style>
     <script>
-    		let vcode='avc1.640020';
-    		let acode='mp4a.40.2'
+    		var vcode='avc1.640020';
+    		var acode='mp4a.40.2'
         var mimecode = 'video/mp4; codecs=';
-        let sb = null;
+        var sb = null;
         var mes = null;
     </script>
 </head>
@@ -136,7 +136,7 @@
         function readr(reader) {
             return reader.read().then(function(result) {
 
-                let chunk = result.value; ///Uint8Array
+                var chunk = result.value; ///Uint8Array
 
                 if (result.done) {
                     console.log("this's over");
@@ -145,10 +145,10 @@
                     _requestAbort = false;
                     return reader.cancel();
                 }
-                let temp = new Uint8Array(temp_u8a.length + chunk.length);
+                var temp = new Uint8Array(temp_u8a.length + chunk.length);
                 temp.set(temp_u8a, 0);
                 temp.set(chunk, temp_u8a.length);
-                let offest = flvParse.setFlv(temp);
+                var offest = flvParse.setFlv(temp);
                 temp_u8a = temp.slice(offest);
                 console.log('offest', offest, '数据长度', temp.length)
                 return _this.readr(reader);

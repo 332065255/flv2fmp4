@@ -51,6 +51,12 @@ class tagDemux {
             return (new Int16Array(buf))[0] === 256; // platform-spec read, if equal then LE
         })();
     }
+    set hasAudio(s){
+        this._mediaInfo.hasAudio = this._hasAudio=s;
+    }
+    set hasVideo(s){
+        this._mediaInfo.hasVideo = this._hasVideo=s;
+    }
     onMediaInfo(callback) {
         this._onMediaInfo = callback;
     }
