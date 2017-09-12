@@ -116,6 +116,7 @@
         var headers = new window.Headers();
         var _requestAbort = false;
         var init=false;
+        var error=false;
         btn_load.addEventListener("click", function() {
             req = new Request(document.querySelector("#videosrc").value, {
                 headers: headers,
@@ -137,7 +138,9 @@
             return reader.read().then(function(result) {
 
                 var chunk = result.value; ///Uint8Array
-
+                if(error){
+                    return reader.cancel();
+                }
                 if (result.done) {
                     console.log("this's over");
                     return reader.cancel();
@@ -182,22 +185,27 @@
 			if(mes==null){
 	        		mes=	new MediaSource;
 		        mes.addEventListener('sourceopen', sourceOpen);
+                mes.addEventListener('sourceended',function(e){
+                    console.log('mes',e,mes)
+                })
 				if(b.hasVideo&&b.hasAudio){
-					mimecode+='"'+vcode+','+acode+'"'
+					mimecode+='"'+a.videoCodec+','+a.audioCodec+'"'
 				}
 				if(b.hasVideo&&!b.hasAudio){
-					mimecode+='"'+vcode+'"'
+					mimecode+='"'+a.videoCodec+'"'
 				}
 				if(!b.hasVideo&&b.hasAudio){
-					mimecode+='"'+acode+'"'
+					mimecode+='"'+a.audioCodec+'"'
 				}
 		        function sourceOpen() {
 		            sb = mes.addSourceBuffer(mimecode);
 		            sb.addEventListener('updateend', () => {
 		                doappendbuff();
+                        console.log('加载完成');
 		            });
 		            sb.addEventListener('error', (e) => {
-		                console.log(e)
+                        console.log(e,'报错',JSON.stringify(e))
+                        error=true;
 		            });
 		            if(temp_arr.length>0){
 		            	doappendbuff();

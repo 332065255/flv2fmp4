@@ -182,7 +182,7 @@ class flv2fmp4 {
             this.metaSuccRun = true;
             return;
         }
-
+        if(mi)return;
         this.ftyp_moov = mp4remux.generateInitSegment(this.metas);
         if (this.onInitSegment && this.loadmetadata == false) {
 
