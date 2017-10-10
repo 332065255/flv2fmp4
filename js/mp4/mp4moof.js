@@ -172,16 +172,21 @@ class MP4Remuxer {
     }
 
     _remuxAudio(audioTrack) {
-        const track = audioTrack;
-        const samples = track.samples;
-        let dtsCorrection;
+        if(this._audioMeta==null){
+            return;
+        }else{
+            console.log('this._audioMeta.refSampleDuration',this._audioMeta)
+        }
+        let track = audioTrack;
+        let samples = track.samples;
+        let dtsCorrection=undefined;
         let firstDts = -1,
             lastDts = -1,
             lastPts = -1;
 
         let remuxSilentFrame = false;
         let silentFrameDuration = -1;
-
+        let refSampleDuration = this._audioMeta.refSampleDuration;
         if (!samples || samples.length === 0) {
             return;
         }

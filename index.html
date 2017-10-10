@@ -189,13 +189,13 @@
                     console.log('mes',e,mes)
                 })
 				if(b.hasVideo&&b.hasAudio){
-					mimecode+='"'+a.videoCodec+','+a.audioCodec+'"'
+					mimecode+='"'+(a.videoCodec||vcode)+','+(a.audioCodec||acode)+'"'
 				}
 				if(b.hasVideo&&!b.hasAudio){
-					mimecode+='"'+a.videoCodec+'"'
+					mimecode+='"'+a.videoCodec||vcode+'"'
 				}
 				if(!b.hasVideo&&b.hasAudio){
-					mimecode+='"'+a.audioCodec+'"'
+					mimecode+='"'+a.audioCodec||acode+'"'
 				}
 		        function sourceOpen() {
 		            sb = mes.addSourceBuffer(mimecode);
