@@ -43,7 +43,7 @@ class tagDemux {
         };
 
         this._videoTrack = { type: 'video', id: 1, sequenceNumber: 0, addcoefficient: 2, samples: [], length: 0 };
-        this._audioTrack = { type: 'audio', id: 2, sequenceNumber: 1, addcoefficient: 2, samples: [], length: 0 };
+        this._audioTrack = { type: 'audio', id: 2, sequenceNumber: 0, addcoefficient: 2, samples: [], length: 0 };
 
         this._littleEndian = (function() {
             const buf = new ArrayBuffer(2);

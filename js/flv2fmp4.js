@@ -24,7 +24,10 @@ class flv2fmp4 {
 
         // 内部使用
         this.loadmetadata = false;
-        this.ftyp_moov = null;
+        this.ftyp_moov = null;//单路
+
+        this.ftyp_moov_v=null;//双路视频
+        this.ftyp_moov_a=null;//双路音频
         this.metaSuccRun = false;
         this.metas = [];
         this.parseChunk = null;
@@ -73,6 +76,7 @@ class flv2fmp4 {
     setflvBasefrist(arraybuff, baseTime) {
 
         let offset = flvparse.setFlv(new Uint8Array(arraybuff));
+        if(flvparse.arrTag.length==0)return offset;
         if(flvparse.arrTag[0].type!=18){
             if(this.error)this.error(new Error('without metadata tag'));
         }
@@ -121,7 +125,7 @@ class flv2fmp4 {
     onMdiaSegment(track, value) {
 
         if (this.onMediaSegment) {
-            this.onMediaSegment(new Uint8Array(value.data));
+            this.onMediaSegment(track,new Uint8Array(value.data));
         }
         if (this._pendingResolveSeekPoint != -1 && track == 'video') {
             let seekpoint = this._pendingResolveSeekPoint;
@@ -144,7 +148,7 @@ class flv2fmp4 {
     Metadata(type, meta) {
         switch (type) {
             case 'video':
-                this.metas.push(meta);
+                this.metas.push(['video',meta]);
                 this.m4mof._videoMeta = meta;
                 if (this.hasVideo && !this.hasAudio) {
                     this.metaSucc();
@@ -152,7 +156,7 @@ class flv2fmp4 {
                 }
                 break;
             case 'audio':
-                this.metas.push(meta);
+                this.metas.push(['audio',meta]);
                 this.m4mof._audioMeta = meta;
                 if (!this.hasVideo && this.hasAudio) {
                     this.metaSucc();
@@ -183,10 +187,27 @@ class flv2fmp4 {
             return;
         }
         if(mi)return;
-        this.ftyp_moov = mp4remux.generateInitSegment(this.metas);
+        if(this.metas.length>1){
+            // this.ftyp_moov_v=
+            this.metas.map(item=>{
+                if(item[0]=='video'){
+                    this.ftyp_moov_v=mp4remux.generateInitSegment([item[1]]);
+                }else{
+                    this.ftyp_moov_a=mp4remux.generateInitSegment([item[1]]);
+                }
+            })
+        }else{
+            this.ftyp_moov = mp4remux.generateInitSegment([this.metas[0][1]]);
+        }
+        
         if (this.onInitSegment && this.loadmetadata == false) {
 
-            this.onInitSegment(this.ftyp_moov);
+            if(this.ftyp_moov)
+            {
+                this.onInitSegment(this.ftyp_moov);
+            }else{
+                this.onInitSegment(this.ftyp_moov_v,this.ftyp_moov_a);
+            }
             this.loadmetadata = true;
         }
     }

@@ -110,13 +110,21 @@
         var resultU8t=null;
         var _this = this;
         var req = null;
+        var _bufferSize = 1024 * 1024 * 0.2;
         var dropbox = document.querySelector('body #con div');
         var btn_load = document.querySelector("#btn_load");
         var temp_u8a = new Uint8Array();
         var headers = new window.Headers();
+        var source={
+            video:null,
+            audio:null,
+        };
         var _requestAbort = false;
         var init=false;
         var error=false;
+        var temp_arr = []
+        var temp_arr_v = []
+        var temp_arr_a = []
         btn_load.addEventListener("click", function() {
             req = new Request(document.querySelector("#videosrc").value, {
                 headers: headers,
@@ -132,8 +140,7 @@
                 return _this.readr(reader);
             })
         })
-        var temp_arr = []
-
+        
         function readr(reader) {
             return reader.read().then(function(result) {
 
@@ -148,12 +155,27 @@
                     _requestAbort = false;
                     return reader.cancel();
                 }
-                var temp = new Uint8Array(temp_u8a.length + chunk.length);
-                temp.set(temp_u8a, 0);
-                temp.set(chunk, temp_u8a.length);
-                var offest = flvParse.setFlv(temp);
-                temp_u8a = temp.slice(offest);
-                console.log('offest', offest, '数据长度', temp.length)
+                if(temp_u8a.length<_bufferSize){
+                    let temp = new Uint8Array(temp_u8a.length + chunk.length);
+                    temp.set(temp_u8a, 0);
+                    temp.set(chunk, temp_u8a.length);
+                    temp_u8a = temp.slice(0);
+                }else{
+                    // _bufferSize=1024*1024*.5;
+                    // let temp = new Uint8Array(temp_u8a.length + chunk.length);
+                    // temp.set(temp_u8a, 0);
+                    // temp.set(chunk, temp_u8a.length);
+                    var offest = flvParse.setFlv(temp_u8a);
+                    temp_u8a = temp_u8a.slice(offest);
+
+
+                    let temp = new Uint8Array(temp_u8a.length + chunk.length);
+                    temp.set(temp_u8a, 0);
+                    temp.set(chunk, temp_u8a.length);
+                    temp_u8a = temp.slice(0);
+                }
+                
+                // console.log('offest', offest, '数据长度', temp.length)
                 return _this.readr(reader);
             })
         }
@@ -186,30 +208,71 @@
 	        		mes=	new MediaSource;
 		        mes.addEventListener('sourceopen', sourceOpen);
                 mes.addEventListener('sourceended',function(e){
-                    console.log('mes',e,mes)
+                    // console.log('mes',e,mes)
                 })
-				if(b.hasVideo&&b.hasAudio){
-					mimecode+='"'+(a.videoCodec||vcode)+','+(a.audioCodec||acode)+'"'
-				}
-				if(b.hasVideo&&!b.hasAudio){
-					mimecode+='"'+a.videoCodec||vcode+'"'
-				}
-				if(!b.hasVideo&&b.hasAudio){
-					mimecode+='"'+a.audioCodec||acode+'"'
-				}
+				// if(b.hasVideo&&b.hasAudio){
+				// 	mimecode+='"'+(a.videoCodec||vcode)+','+(a.audioCodec||acode)+'"'
+				// }
+				// if(b.hasVideo&&!b.hasAudio){
+				// 	mimecode+='"'+a.videoCodec||vcode+'"'
+				// }
+				// if(!b.hasVideo&&b.hasAudio){
+				// 	mimecode+='"'+a.audioCodec||acode+'"'
+				// }
 		        function sourceOpen() {
-		            sb = mes.addSourceBuffer(mimecode);
-		            sb.addEventListener('updateend', () => {
-		                doappendbuff();
-                        console.log('加载完成');
-		            });
-		            sb.addEventListener('error', (e) => {
-                        console.log(e,'报错',JSON.stringify(e))
-                        error=true;
-		            });
-		            if(temp_arr.length>0){
-		            	doappendbuff();
-		            }
+		            // sb = mes.addSourceBuffer(mimecode);
+		            // sb.addEventListener('updateend', () => {
+		            //     doappendbuff();
+                    //     console.log('加载完成');
+		            // });
+		            // sb.addEventListener('error', (e) => {
+                    //     console.log(e,'报错',JSON.stringify(e))
+                    //     error=true;
+		            // });
+		            // if(temp_arr.length>0){
+		            // 	doappendbuff();
+                    // }
+                    
+                    if(b.hasVideo&&b.hasAudio){
+                        // mimecode+='"'+(a.videoCodec||vcode)+','+(a.audioCodec||acode)+'"'
+                        source.video=mes.addSourceBuffer(mimecode+'"'+(a.videoCodec||vcode));
+                        source.audio=mes.addSourceBuffer('audio/mp4;codecs='+'"'+(a.audioCodec||acode));
+                    }
+                    if(b.hasVideo&&!b.hasAudio){
+                        // mimecode+='"'+a.videoCodec||vcode+'"'
+                        source.video=mes.addSourceBuffer(mimecode+'"'+(a.videoCodec||vcode));
+                    }
+                    if(!b.hasVideo&&b.hasAudio){
+                        // mimecode+='"'+a.audioCodec||acode+'"'
+                        source.audio=mes.addSourceBuffer('audio/mp4;codecs='+'"'+(a.audioCodec||acode));
+                    }
+                    if(source.video){
+                        source.video.addEventListener('updateend', () => {
+                            doappendbuff_v();
+                            console.log('加载完成');
+                        });
+                        source.video.addEventListener('error', (e) => {
+                            console.log(e,'报错',JSON.stringify(e))
+                            error=true;
+                        });
+                        if(temp_arr_v.length>0){
+                            doappendbuff_v();
+                        }
+                    }
+                    if(source.audio){
+                        source.audio.addEventListener('updateend', () => {
+                            doappendbuff_a();
+                            console.log('加载完成');
+                        });
+                        source.audio.addEventListener('error', (e) => {
+                            console.log(e,'报错',JSON.stringify(e))
+                            error=true;
+                        });
+                        if(temp_arr_a.length>0){
+                            doappendbuff_a();
+                        }
+                    }
+
 		        }
 		        video.src = URL.createObjectURL(mes);
         		}
@@ -227,17 +290,29 @@
 		}
 		
         function mp4Init(a,b) {
-        		resultU8t=new Uint8Array(a.length);
-        		resultU8t.set(a,0);
-            console.log('init', a);
-            temp_arr.unshift(a.buffer);
+            if(a){
+                resultU8t=new Uint8Array(a.length);
+                resultU8t.set(a,0);
+                console.log('init_v', a);
+                temp_arr_v.unshift(a.buffer);
+                doappendbuff_v();
+            }
+        	
+
+            if(b){
+                resultU8t=new Uint8Array(b.length);
+                resultU8t.set(b,0);
+                console.log('init_a', b);
+                temp_arr_a.unshift(b.buffer);
+                doappendbuff_a();
+            }
             // console.log("moov"+URL.createObjectURL(new Blob([a.buffer])));
 //          var hrefa=document.createElement('a');
 //          hrefa.href=URL.createObjectURL(new Blob([a.buffer]));
 //          hrefa.innerHTML='moov下载';
 //          hrefa.style.display='block';
 //          document.body.appendChild(hrefa);
-            doappendbuff();
+            // doappendbuff();
             if(!init)init=true;
         }
 		function outMp4(){
@@ -247,8 +322,8 @@
             hrefa.innerHTML='mp4下载';
             document.body.appendChild(hrefa);
 		}
-        function onMediaSegment(a) {
-            console.log('moof', a);
+        function onMediaSegment(name,a) {
+            // console.log('moof',name, a);
 //          var temp=new Uint8Array(resultU8t.length+a.length);
 //          temp.set(resultU8t,0);
 //          temp.set(a,resultU8t.length);
@@ -257,9 +332,18 @@
 //          resultU8t.set(temp,0);
             
 //          end();
-            temp_arr.push(a.buffer);
-            if(!init)return;
-            doappendbuff();
+            if(name=='video'){
+                temp_arr_v.push(a.buffer);
+                if(!init)return;
+                doappendbuff_v();
+            }else{
+                temp_arr_a.push(a.buffer);
+                if(!init)return;
+                doappendbuff_a();
+            }
+            // temp_arr.push(a.buffer);
+            // if(!init)return;
+            // doappendbuff();
         }
 
         function doappendbuff() {
@@ -271,6 +355,35 @@
             }
             if(!sb){
             	 console.log('sb还没准备好');
+            }
+
+        }
+        function doappendbuff_v() {
+            if (source.video&&!source.video.updating && temp_arr_v.length > 0) {
+                console.log('开始添加');
+                setTimeout(function() {
+                    source.video.appendBuffer(temp_arr_v.shift());
+                }, 0);
+            } else {
+                console.log('source.video 还在忙碌');
+            }
+            if(!source.video){
+            	 console.log('source.video还没准备好');
+            }
+
+        }
+        function doappendbuff_a() {
+            if (source.audio&&!source.audio.updating && temp_arr_a.length > 0) {
+                console.log('开始添加');
+                setTimeout(function() {
+                    source.audio.appendBuffer(temp_arr_a.shift());
+                }, 0);
+                
+            } else {
+                console.log('source.audio还在忙碌');
+            }
+            if(!source.audio){
+            	 console.log('source.audio还没准备好');
             }
 
         }
