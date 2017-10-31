@@ -361,9 +361,9 @@
         function doappendbuff_v() {
             if (source.video&&!source.video.updating && temp_arr_v.length > 0) {
                 console.log('开始添加');
-                setTimeout(function() {
+                // setTimeout(function() {
                     source.video.appendBuffer(temp_arr_v.shift());
-                }, 0);
+                // }, 0);
             } else {
                 console.log('source.video 还在忙碌');
             }
@@ -375,9 +375,9 @@
         function doappendbuff_a() {
             if (source.audio&&!source.audio.updating && temp_arr_a.length > 0) {
                 console.log('开始添加');
-                setTimeout(function() {
+                // setTimeout(function() {
                     source.audio.appendBuffer(temp_arr_a.shift());
-                }, 0);
+                // }, 0);
                 
             } else {
                 console.log('source.audio还在忙碌');
