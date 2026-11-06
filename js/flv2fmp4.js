@@ -35,6 +35,8 @@ class flv2fmp4 {
 
         // 临时记录flv数据起始时间
         this._tempBaseTime = 0;
+        // seek 后要等第一个音视频 tag 才能判断时间戳是绝对时间还是从 0 重基准
+        this._needTimestampAdjust = false;
 
         // 处理flv数据入口
         this.setflvBase = this.setflvBasefrist;
@@ -54,9 +56,41 @@ class flv2fmp4 {
         if (this._tempBaseTime != baseTime) {
             this._tempBaseTime = baseTime;
             tagdemux._timestampBase = baseTime;
+            tagdemux._audioTrack.samples = [];
+            tagdemux._audioTrack.length = 0;
+            tagdemux._videoTrack.samples = [];
+            tagdemux._videoTrack.length = 0;
             this.m4mof.seek(baseTime);
             this.m4mof.insertDiscontinuity();
             this._pendingResolveSeekPoint = baseTime;
+            this._needTimestampAdjust = baseTime !== 0;
+        }
+    }
+
+    /**
+     * seek 之后的 tag 时间有两种：文件内绝对时间，或被重基准到 0。
+     * 绝对时间再加一次起点会把 dts 翻倍。
+     */
+    _adjustTimestampBase(tags) {
+        if (!this._needTimestampAdjust) {
+            return;
+        }
+        let mediaTime = null;
+        for (let i = 0; i < tags.length; i++) {
+            const tag = tags[i];
+            if (tag.tagType === 8 || tag.tagType === 9) {
+                mediaTime = tag.getTime();
+                break;
+            }
+        }
+        if (mediaTime == null) {
+            return;
+        }
+        this._needTimestampAdjust = false;
+        if (mediaTime < 2000 && this._tempBaseTime > 2000) {
+            tagdemux._timestampBase = this._tempBaseTime;
+        } else {
+            tagdemux._timestampBase = 0;
         }
     }
 
@@ -73,19 +107,22 @@ class flv2fmp4 {
     setflvBasefrist(arraybuff, baseTime) {
 
         let offset = flvparse.setFlv(new Uint8Array(arraybuff));
-        if(flvparse.arrTag[0].type!=18){
-            if(this.error)this.error(new Error('without metadata tag'));
+        if (flvparse.arrTag.length === 0) {
+            return offset;
         }
-        if (flvparse.arrTag.length > 0) {
-            tagdemux.hasAudio=this.hasAudio = flvparse._hasAudio;
-            tagdemux.hasVideo=this.hasVideo = flvparse._hasVideo;
-            
-            if (this._tempBaseTime != 0 && this._tempBaseTime == flvparse.arrTag[0].getTime()) {
-                tagdemux._timestampBase = 0;
+        if (flvparse.arrTag[0].tagType !== 18) {
+            const err = new Error('without metadata tag');
+            if (typeof this.onError === 'function') {
+                this.onError(err);
+            } else if (typeof this.error === 'function') {
+                this.error(err);
             }
-            tagdemux.moofTag(flvparse.arrTag);
-            this.setflvBase = this.setflvBaseUsually;
         }
+        tagdemux.hasAudio = this.hasAudio = flvparse._hasAudio;
+        tagdemux.hasVideo = this.hasVideo = flvparse._hasVideo;
+        this._adjustTimestampBase(flvparse.arrTag);
+        tagdemux.moofTag(flvparse.arrTag);
+        this.setflvBase = this.setflvBaseUsually;
 
         return offset;
     }
@@ -103,6 +140,9 @@ class flv2fmp4 {
         const offset = flvparse.setFlv(new Uint8Array(arraybuff));
 
         if (flvparse.arrTag.length > 0) {
+            if (this._needTimestampAdjust) {
+                this._adjustTimestampBase(flvparse.arrTag);
+            }
             tagdemux.moofTag(flvparse.arrTag);
         }
 
@@ -121,9 +161,9 @@ class flv2fmp4 {
     onMdiaSegment(track, value) {
 
         if (this.onMediaSegment) {
-            this.onMediaSegment(new Uint8Array(value.data));
+            this.onMediaSegment(new Uint8Array(value.data), track);
         }
-        if (this._pendingResolveSeekPoint != -1 && track == 'video') {
+        if (this._pendingResolveSeekPoint != -1 && (track == 'video' || !this.hasVideo)) {
             let seekpoint = this._pendingResolveSeekPoint;
             this._pendingResolveSeekPoint = -1;
             if (this.seekCallBack) {
@@ -142,6 +182,8 @@ class flv2fmp4 {
      * @memberof flv2fmp4
      */
     Metadata(type, meta) {
+        this.hasAudio = tagdemux._hasAudio;
+        this.hasVideo = tagdemux._hasVideo;
         switch (type) {
             case 'video':
                 this.metas.push(meta);
@@ -205,6 +247,9 @@ class flv2fmp4 {
      * @memberof flv2fmp4
      */
     setflv(arraybuff, baseTime) {
+        if (typeof baseTime === 'number' && baseTime !== this._tempBaseTime) {
+            this.seek(baseTime);
+        }
         return this.setflvBase(arraybuff, baseTime);
     }
 
@@ -260,8 +305,8 @@ class foreign {
      *
      * @memberof flv2fmp4
      */
-    setflv(arraybuff) {
-        return this.f2m.setflv(arraybuff, 0);
+    setflv(arraybuff, baseTime) {
+        return this.f2m.setflv(arraybuff, baseTime);
     }
 
     /**

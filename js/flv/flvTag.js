@@ -11,14 +11,15 @@ export default class FlvTag {
         this.size=-1;
     }
     getTime() {
-        // this.Timestamp.pop();
-        this.arr = [];
-        for (let i = 0; i < this.Timestamp.length; i++) {
-            this.arr.push((this.Timestamp[i].toString(16).length == 1 ? '0' + this.Timestamp[i].toString(16) : this.Timestamp[i].toString(16)));
+        const ts = this.Timestamp;
+        if (!ts || ts.length < 3) {
+            this.time = 0;
+            return 0;
         }
-        this.arr.pop();
-        const time = this.arr.join('');
-        this.time = parseInt(time, 16);
-        return parseInt(time, 16);
+        // 前 3 字节是低 24 位，第 4 字节 TimestampExtended 是高 8 位
+        const low = (ts[0] << 16) | (ts[1] << 8) | ts[2];
+        const high = ts.length > 3 ? ts[3] : 0;
+        this.time = ((high << 24) | low) >>> 0;
+        return this.time;
     }
 }

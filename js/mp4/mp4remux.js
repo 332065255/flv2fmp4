@@ -576,7 +576,7 @@ class MP4 {
 
         // Track fragment header box
         const tfhd = MP4.box(MP4.types.tfhd, new Uint8Array([
-            0x00, 0x00, 0x00, 0x00, // version(0) & flags
+            0x00, 0x02, 0x00, 0x00, // version(0) & flags: default-base-is-moof
             (trackId >>> 24) & 0xFF, // track_ID
             (trackId >>> 16) & 0xFF,
             (trackId >>> 8) & 0xFF,
@@ -623,8 +623,17 @@ class MP4 {
         const data = new Uint8Array(dataSize);
         offset += 8 + dataSize;
 
+        // 有负 CTS（B 帧）时必须用 version 1，composition_time_offset 才是有符号数
+        let version = 0;
+        for (let i = 0; i < sampleCount; i++) {
+            if (samples[i].cts < 0) {
+                version = 1;
+                break;
+            }
+        }
+
         data.set([
-            0x00, 0x00, 0x0F, 0x01, // version(0) & flags
+            version, 0x00, 0x0F, 0x01, // version & flags
             (sampleCount >>> 24) & 0xFF, // sample_count
             (sampleCount >>> 16) & 0xFF,
             (sampleCount >>> 8) & 0xFF,
@@ -652,7 +661,7 @@ class MP4 {
                 (size >>> 8) & 0xFF,
                 (size) & 0xFF,
                 (flags.isLeading << 2) | flags.dependsOn, // sample_flags
-                (flags.isDependedOn << 6) | (flags.hasRedundancy << 4) | flags.isNonSync,
+                (flags.isDependedOn << 6) | (flags.hasRedundancy << 4) | (flags.isNonSync << 2),
                 0x00, 0x00, // sample_degradation_priority
                 (cts >>> 24) & 0xFF, // sample_composition_time_offset
                 (cts >>> 16) & 0xFF,

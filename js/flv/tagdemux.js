@@ -2,6 +2,11 @@
 import flvDemux from './flvdemux';
 import mediainfo from './media-info';
 import SPSParser from './sps-parser';
+
+const DemuxErrors = {
+    FORMAT_ERROR: 'FormatError',
+    CODEC_UNSUPPORTED: 'CodecUnsupported'
+};
 class tagDemux {
     constructor() {
         this.TAG = this.constructor.name;
@@ -42,8 +47,8 @@ class tagDemux {
             fps_den: 1000
         };
 
-        this._videoTrack = { type: 'video', id: 1, sequenceNumber: 0, addcoefficient: 2, samples: [], length: 0 };
-        this._audioTrack = { type: 'audio', id: 2, sequenceNumber: 1, addcoefficient: 2, samples: [], length: 0 };
+        this._videoTrack = { type: 'video', id: 1, sequenceNumber: 1, addcoefficient: 1, samples: [], length: 0 };
+        this._audioTrack = { type: 'audio', id: 2, sequenceNumber: 1, addcoefficient: 1, samples: [], length: 0 };
 
         this._littleEndian = (function() {
             const buf = new ArrayBuffer(2);
@@ -115,11 +120,9 @@ class tagDemux {
                     this._mediaInfo.fps = fps;
                 }
             }
-            if (typeof onMetaData.keyframes === 'object') { // keyframes
+            if (onMetaData.keyframes && typeof onMetaData.keyframes === 'object') {
                 this._mediaInfo.hasKeyframesIndex = true;
                 const keyframes = onMetaData.keyframes;
-                keyframes.times = onMetaData.times;
-                keyframes.filepositions = onMetaData.filepositions;
                 this._mediaInfo.keyframesIndex = this._parseKeyframesIndex(keyframes);
                 onMetaData.keyframes = null; // keyframes has been extracted, remove it
             } else {
@@ -138,12 +141,14 @@ class tagDemux {
     _parseKeyframesIndex(keyframes) {
         const times = [];
         const filepositions = [];
+        const srcTimes = keyframes.times || [];
+        const srcPositions = keyframes.filepositions || [];
 
         // ignore first keyframe which is actually AVC Sequence Header (AVCDecoderConfigurationRecord)
-        for (let i = 1; i < keyframes.times.length; i++) {
-            const time = this._timestampBase + Math.floor(keyframes.times[i] * 1000);
+        for (let i = 1; i < srcTimes.length; i++) {
+            const time = this._timestampBase + Math.floor(srcTimes[i] * 1000);
             times.push(time);
-            filepositions.push(keyframes.filepositions[i]);
+            filepositions.push(srcPositions[i]);
         }
 
         return {
@@ -205,8 +210,7 @@ class tagDemux {
         const codecId = spec & 15;
 
         if (codecId !== 7) {
-            if(this._onError)
-            this._onError(`Flv: Unsupported codec in video frame: ${codecId}`);
+            this._emitError(DemuxErrors.CODEC_UNSUPPORTED, `Flv: Unsupported codec in video frame: ${codecId}`);
             return;
         }
 
@@ -234,7 +238,9 @@ class tagDemux {
         //  Composition time offset
         // ELSE
         //  0
-        const cts = v.getUint32(0, !le) & 0x00FFFFFF;
+        // CompositionTime 是有符号 24 位，B 帧会出现负数
+        let cts = v.getUint32(0, !le) & 0x00FFFFFF;
+        cts = (cts << 8) >> 8;
 
         // IF AVCPacketType == 0 AVCDecoderConfigurationRecord（AVC sequence header）
         // IF AVCPacketType == 1 One or more NALUs (Full frames are required)
@@ -253,7 +259,7 @@ class tagDemux {
         } else if (packetType === 2) {
             // empty, AVC end of sequence
         } else {
-            this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid video packet type ${packetType}`);
+            this._emitError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid video packet type ${packetType}`);
             return;
         }
     }
@@ -290,19 +296,19 @@ class tagDemux {
         const avcLevel = v.getUint8(3); // AVCLevelIndication
 
         if (version !== 1 || avcProfile === 0) {
-            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AVCDecoderConfigurationRecord');
+            this._emitError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AVCDecoderConfigurationRecord');
             return;
         }
 
         this._naluLengthSize = (v.getUint8(4) & 3) + 1; // lengthSizeMinusOne
         if (this._naluLengthSize !== 3 && this._naluLengthSize !== 4) { // holy shit!!!
-            this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Strange NaluLengthSizeMinusOne: ${this._naluLengthSize - 1}`);
+            this._emitError(DemuxErrors.FORMAT_ERROR, `Flv: Strange NaluLengthSizeMinusOne: ${this._naluLengthSize - 1}`);
             return;
         }
 
         const spsCount = v.getUint8(5) & 31; // numOfSequenceParameterSets
         if (spsCount === 0 || spsCount > 1) {
-            this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid H264 SPS count: ${spsCount}`);
+            this._emitError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid H264 SPS count: ${spsCount}`);
             return;
         }
 
@@ -379,7 +385,7 @@ class tagDemux {
 
         const ppsCount = v.getUint8(offset); // numOfPictureParameterSets
         if (ppsCount === 0 || ppsCount > 1) {
-            this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid H264 PPS count: ${ppsCount}`);
+            this._emitError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid H264 PPS count: ${ppsCount}`);
             return;
         }
 
@@ -439,7 +445,7 @@ class tagDemux {
         let keyframe = (frameType === 1); // from FLV Frame Type constants
 
         while (offset < dataSize) {
-            if (offset + 4 >= dataSize) {
+            if (offset + 4 > dataSize) {
                 console.log(this.TAG, `Malformed Nalu near timestamp ${dts}, offset = ${offset}, dataSize = ${dataSize}`);
                 break; // data not enough for next Nalu
             }
@@ -448,7 +454,7 @@ class tagDemux {
             if (lengthSize === 3) {
                 naluSize >>>= 8;
             }
-            if (naluSize > dataSize - lengthSize) {
+            if (naluSize > dataSize - offset - lengthSize) {
                 console.log(this.TAG, `Malformed Nalus near timestamp ${dts}, NaluSize > DataSize!`);
                 return;
             }
@@ -514,7 +520,7 @@ class tagDemux {
             const soundFormat = soundSpec >>> 4;
             if (soundFormat !== 10) { // AAC
                 // TODO: support MP3 audio codec
-                this._onError(DemuxErrors.CODEC_UNSUPPORTED, 'Flv: Unsupported audio codec idx: ' + soundFormat);
+                this._emitError(DemuxErrors.CODEC_UNSUPPORTED, 'Flv: Unsupported audio codec idx: ' + soundFormat);
                 return;
             }
 
@@ -526,7 +532,7 @@ class tagDemux {
             if (soundRateIndex < soundRateTable.length) {
                 soundRate = soundRateTable[soundRateIndex];
             } else {
-                this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid audio sample rate idx: ' + soundRateIndex);
+                this._emitError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid audio sample rate idx: ' + soundRateIndex);
                 return;
             }
 
@@ -644,7 +650,7 @@ class tagDemux {
         // 4 bits
         samplingIndex = ((array[0] & 0x07) << 1) | (array[1] >>> 7);
         if (samplingIndex < 0 || samplingIndex >= mpegSamplingRates.length) {
-            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid sampling frequency index!');
+            this._emitError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid sampling frequency index!');
             return;
         }
 
@@ -653,7 +659,7 @@ class tagDemux {
         // 4 bits
         const channelConfig = (array[1] & 0x78) >>> 3;
         if (channelConfig < 0 || channelConfig >= 8) {
-            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid channel configuration');
+            this._emitError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid channel configuration');
             return;
         }
 
@@ -665,7 +671,7 @@ class tagDemux {
         }
 
         // workarounds for various browsers
-        const userAgent = self.navigator.userAgent.toLowerCase();
+        const userAgent = (typeof self !== 'undefined' && self.navigator && self.navigator.userAgent || '').toLowerCase();
 
         if (userAgent.indexOf('firefox') !== -1) {
             // firefox: use SBR (HE-AAC) if freq less than 24kHz
@@ -718,6 +724,14 @@ class tagDemux {
             codec: 'mp4a.40.' + audioObjectType,
             originalAudioObjectType
         };
+    }
+    _emitError(code, msg) {
+        const message = msg || code;
+        if (typeof this._onError === 'function') {
+            this._onError(code, message);
+        } else {
+            console.log(this.TAG, message);
+        }
     }
     _isInitialMetadataDispatched() {
         if (this._hasAudio && this._hasVideo) { // both audio & video

@@ -1,6 +1,5 @@
 /* eslint-disable */
 import decodeUTF8 from '../decodeUTF8';
-import SPSParser from './sps-parser';
 const le = (function() {
     const buf = new ArrayBuffer(2);
     (new DataView(buf)).setInt16(0, 256, true); // little-endian write
@@ -11,10 +10,15 @@ export default class flvDemux {
     constructor() {
 
     }
+    /**
+     * 读一个 AMF 属性。size 是从 dataOffset 开始消耗的字节数。
+     */
     static parseObject(arrayBuffer, dataOffset, dataSize) {
-
+        if (dataSize < 3) {
+            return { data: { name: '', value: undefined }, size: 0, objectEnd: true };
+        }
         const name = flvDemux.parseString(arrayBuffer, dataOffset, dataSize);
-        const value = flvDemux.parseScript(arrayBuffer, dataOffset + name.size);
+        const value = flvDemux.parseScript(arrayBuffer, dataOffset + name.size, dataSize - name.size);
         const isObjectEnd = value.objectEnd;
 
         return {
@@ -22,7 +26,7 @@ export default class flvDemux {
                 name: name.data,
                 value: value.data
             },
-            size: value.size,
+            size: name.size + value.size,
             objectEnd: isObjectEnd
         };
     }
@@ -78,65 +82,77 @@ export default class flvDemux {
      * 解析metadata
      */
     static parseMetadata(arr) {
-        const name = flvDemux.parseScript(arr, 0);
-        const value = flvDemux.parseScript(arr, name.size, arr.length - name.size);
-        // return {}
-        const data = {};
-        data[name.data] = value.data;
-        return data;
+        try {
+            const uint8 = new Uint8Array(arr);
+            const buffer = uint8.buffer;
+            const name = flvDemux.parseScript(buffer, 0, buffer.byteLength);
+            if (!name || name.size <= 0 || name.data == null) {
+                return {};
+            }
+            const value = flvDemux.parseScript(buffer, name.size, buffer.byteLength - name.size);
+            const data = {};
+            data[name.data] = value.data;
+            return data;
+        } catch (e) {
+            console.log('AMF', e);
+            return {};
+        }
     }
 
-    static parseScript(arr, offset, dataSize) {
-        let dataOffset = offset;
-        const object = {};
-        const uint8 = new Uint8Array(arr);
-        const buffer = uint8.buffer;
-        const dv = new DataView(buffer, 0, dataSize);
+    /**
+     * 解析一个 AMF0 ScriptDataValue。
+     * size 是相对 dataOffset 消耗的字节数，objectEnd 表示读到了对象结束标记。
+     */
+    static parseScript(arrayBuffer, dataOffset, dataSize) {
+        if (dataSize == null) {
+            dataSize = arrayBuffer.byteLength - dataOffset;
+        }
+        if (dataSize <= 0) {
+            return { data: undefined, size: 0, objectEnd: true };
+        }
+        const dv = new DataView(arrayBuffer, dataOffset, dataSize);
+        let offset = 0;
         let value = null;
         let objectEnd = false;
-        const type = (dv.getUint8(dataOffset));
-        dataOffset += 1;
+        const type = dv.getUint8(offset);
+        offset += 1;
 
         switch (type) {
             case 0: // Number(Double) type
-                value = dv.getFloat64(dataOffset, !le);
-                dataOffset += 8;
+                value = dv.getFloat64(offset, !le);
+                offset += 8;
                 break;
             case 1:
                 { // Boolean type
-                    const b = dv.getUint8(dataOffset);
+                    const b = dv.getUint8(offset);
                     value = !!b;
-                    dataOffset += 1;
+                    offset += 1;
                     break;
                 }
             case 2:
                 { // String type
-                    // dataOffset += 1;
-                    const amfstr = flvDemux.parseString(buffer, dataOffset);
+                    const amfstr = flvDemux.parseString(arrayBuffer, dataOffset + offset, dataSize - offset);
                     value = amfstr.data;
-                    dataOffset += amfstr.size;
+                    offset += amfstr.size;
                     break;
                 }
             case 3:
-
-                { // Object(s) type
+                { // Object type
                     value = {};
                     let terminal = 0; // workaround for malformed Objects which has missing ScriptDataObjectEnd
-                    if ((dv.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
+                    if (dataSize >= 4 && (dv.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
                         terminal = 3;
                     }
-                    while (dataOffset < dataSize - 4) { // 4 === type(UI8) + ScriptDataObjectEnd(UI24)
-                        const amfobj = flvDemux.parseObject(buffer, dataOffset, dataSize - offset - terminal);
-
-                        if (amfobj.objectEnd) { break; }
+                    while (offset < dataSize - 4) { // 4 === type(UI8) + ScriptDataObjectEnd(UI24)
+                        const amfobj = flvDemux.parseObject(arrayBuffer, dataOffset + offset, dataSize - offset - terminal);
+                        if (amfobj.objectEnd || amfobj.size <= 0) { break; }
                         value[amfobj.data.name] = amfobj.data.value;
-                        // dataOffset += amfobj.size;
-                        dataOffset = amfobj.size;
+                        offset += amfobj.size;
                     }
-                    if (dataOffset <= dataSize - 3) {
-                        const marker = v.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;
+                    if (offset <= dataSize - 3) {
+                        const marker = dv.getUint32(offset - 1, !le) & 0x00FFFFFF;
                         if (marker === 9) {
-                            dataOffset += 3;
+                            offset += 3;
                         }
                     }
                     break;
@@ -144,67 +160,65 @@ export default class flvDemux {
             case 8:
                 { // ECMA array type (Mixed array)
                     value = {};
-                    // dataOffset += 1;
-                    dataOffset += 4; // ECMAArrayLength(UI32)
+                    offset += 4; // ECMAArrayLength(UI32)
                     let terminal = 0; // workaround for malformed MixedArrays which has missing ScriptDataObjectEnd
-                    if ((dv.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
+                    if (dataSize >= 4 && (dv.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
                         terminal = 3;
                     }
-                    while (dataOffset < dataSize - 8) { // 8 === type(UI8) + ECMAArrayLength(UI32) + ScriptDataVariableEnd(UI24)
-                        const amfvar = flvDemux.parseVariable(buffer, dataOffset);
-
-                        if (amfvar.objectEnd) { break; }
+                    while (offset < dataSize - 8) { // 8 === type(UI8) + ECMAArrayLength(UI32) + ScriptDataVariableEnd(UI24)
+                        const amfvar = flvDemux.parseVariable(arrayBuffer, dataOffset + offset, dataSize - offset - terminal);
+                        if (amfvar.objectEnd || amfvar.size <= 0) { break; }
                         value[amfvar.data.name] = amfvar.data.value;
-                        dataOffset = amfvar.size;
+                        offset += amfvar.size;
                     }
-                    if (dataOffset <= dataSize - 3) {
-                        const marker = dv.getUint32(dataOffset - 1, !le) & 0x00FFFFFF;
+                    if (offset <= dataSize - 3) {
+                        const marker = dv.getUint32(offset - 1, !le) & 0x00FFFFFF;
                         if (marker === 9) {
-                            dataOffset += 3;
+                            offset += 3;
                         }
                     }
                     break;
                 }
             case 9: // ScriptDataObjectEnd
                 value = undefined;
-                dataOffset = 1;
+                offset = 1;
                 objectEnd = true;
                 break;
             case 10:
                 { // Strict array type
-                    // ScriptDataValue[n]. NOTE: according to video_file_format_spec_v10_1.pdf
                     value = [];
-                    const strictArrayLength = dv.getUint32(dataOffset, !le);
-                    dataOffset += 4;
+                    const strictArrayLength = dv.getUint32(offset, !le);
+                    offset += 4;
                     for (let i = 0; i < strictArrayLength; i++) {
-                        const val = flvDemux.parseScript(buffer, dataOffset);
+                        const val = flvDemux.parseScript(arrayBuffer, dataOffset + offset, dataSize - offset);
                         value.push(val.data);
-                        dataOffset = val.size;
+                        offset += val.size;
                     }
                     break;
                 }
             case 11:
                 { // Date type
-                    const date = flvDemux.parseDate(buffer, dataOffset + 1, dataSize - 1);
+                    const date = flvDemux.parseDate(arrayBuffer, dataOffset + offset, dataSize - offset);
                     value = date.data;
-                    dataOffset += date.size;
+                    offset += date.size;
                     break;
                 }
             case 12:
                 { // Long string type
-                    const amfLongStr = flvDemux.parseString(buffer, dataOffset + 1, dataSize - 1);
+                    const amfLongStr = flvDemux.parseLongString(arrayBuffer, dataOffset + offset, dataSize - offset);
                     value = amfLongStr.data;
-                    dataOffset += amfLongStr.size;
+                    offset += amfLongStr.size;
                     break;
                 }
             default:
                 // ignore and skip
-                dataOffset = dataSize;
+                offset = dataSize;
                 console.log('AMF', 'Unsupported AMF value type ' + type);
         }
         return {
             data: value,
-            size: dataOffset,
+            size: offset,
+            objectEnd
         };
     }
 }

@@ -28,7 +28,7 @@ class MP4Remuxer {
         this.TAG = this.constructor.name;
 
         this._config = config;
-        this._isLive = (config.isLive === true);
+        this._isLive = config._isLive === true || config.isLive === true;
 
         this._dtsBase = -1;
         this._dtsBaseInited = false;
@@ -115,11 +115,13 @@ class MP4Remuxer {
     seek(originalDts) {
         this._videoSegmentInfoList.clear();
         this._audioSegmentInfoList.clear();
+        this._audioNextDts = undefined;
+        this._videoNextDts = undefined;
     }
 
     remux(audioTrack, videoTrack) {
         if (!this._onMediaSegment) {
-            throw new IllegalStateException('MP4Remuxer: onMediaSegment callback must be specificed!');
+            throw new Error('MP4Remuxer: onMediaSegment callback must be specificed!');
         }
         if (!this._dtsBaseInited) {
             this._calculateDtsBase(audioTrack, videoTrack);
@@ -134,18 +136,16 @@ class MP4Remuxer {
         if (type === 'audio') {
             this._audioMeta = metadata;
             metabox = MP4.generateInitSegment(metadata);
-            Log.v('msg+audio', metadata);
         } else if (type === 'video') {
             this._videoMeta = metadata;
             metabox = MP4.generateInitSegment(metadata);
-            Log.v('msg+video', metadata);
         } else {
             return;
         }
 
         // dispatch metabox (Initialization Segment)
         if (!this._onInitSegment) {
-            throw new IllegalStateException('MP4Remuxer: onInitSegment callback must be specified!');
+            throw new Error('MP4Remuxer: onInitSegment callback must be specified!');
         }
         this._onInitSegment(type, {
             type,
@@ -349,11 +349,9 @@ class MP4Remuxer {
     }
 
     _generateSilentAudio(dts, frameDuration) {
-        Log.v(this.TAG, `GenerateSilentAudio: dts = ${dts}, duration = ${frameDuration}`);
-
         const unit = AAC.getSilentFrame(this._audioMeta.channelCount);
         if (unit == null) {
-            Log.w(this.TAG, `Cannot generate silent aac frame for channelCount = ${this._audioMeta.channelCount}`);
+            console.log(this.TAG, `Cannot generate silent aac frame for channelCount = ${this._audioMeta.channelCount}`);
             return null;
         }
 

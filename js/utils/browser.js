@@ -21,7 +21,7 @@ const Browser = {};
 function detect() {
     // modified from jquery-browser-plugin
 
-    const ua = self.navigator.userAgent.toLowerCase();
+    const ua = (typeof self !== 'undefined' && self.navigator && self.navigator.userAgent || '').toLowerCase();
 
     const match = /(edge)\/([\w.]+)/.exec(ua) ||
         /(opr)[\/]([\w.]+)/.exec(ua) ||
